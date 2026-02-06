@@ -383,8 +383,8 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ addToCart, cartCount
               </button>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 };
