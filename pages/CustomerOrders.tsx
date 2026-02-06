@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Navbar } from '../components/Navbar';
 import { getOrders, updateOrderPayment, compressImage } from '../services/dataService';
-import { verifySlipWithAI } from '../services/aiService';
 import { Order, OrderStatus, PaymentMethod } from '../types';
-import { Search, Clock, MapPin, User, Upload, CheckCircle, RefreshCcw, CreditCard, Banknote, XCircle, ClipboardList, Loader2, AlertCircle } from 'lucide-react';
+import { Search, Clock, MapPin, User, Upload, CheckCircle, RefreshCcw, CreditCard, Banknote, XCircle, ClipboardList } from 'lucide-react';
 import { QR_CODE_URL } from '../constants';
 import { LoadingModal } from '../components/LoadingModal';
 import { Footer } from '../components/Footer';
@@ -24,10 +23,6 @@ export const CustomerOrders: React.FC<CustomerOrdersProps> = ({ cartCount }) => 
   const [submittingPayment, setSubmittingPayment] = useState(false);
   const [successModal, setSuccessModal] = useState(false);
 
-  // Verification
-  const [verifying, setVerifying] = useState(false);
-  const [verificationResult, setVerificationResult] = useState<{ isValid: boolean; reason: string } | null>(null);
-
   const fetchOrders = () => {
     setLoading(true);
     getOrders().then(data => {
@@ -43,29 +38,6 @@ export const CustomerOrders: React.FC<CustomerOrdersProps> = ({ cartCount }) => 
     }, 15000); 
     return () => clearInterval(interval);
   }, []);
-
-  useEffect(() => {
-      const checkSlip = async () => {
-        if (slipImage && selectedOrder) {
-          setVerifying(true);
-          setVerificationResult(null);
-          
-          const result = await verifySlipWithAI(slipImage, selectedOrder.totalAmount);
-          
-          setVerifying(false);
-          setVerificationResult({
-            isValid: result.isValid,
-            reason: result.reason
-          });
-        } else {
-            setVerificationResult(null);
-        }
-      };
-  
-      if (slipImage) {
-        checkSlip();
-      }
-    }, [slipImage, selectedOrder]);
 
   const filteredOrders = orders.filter(o => 
     o.customerName.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -97,17 +69,11 @@ export const CustomerOrders: React.FC<CustomerOrdersProps> = ({ cartCount }) => 
   const handleOpenPayment = (order: Order) => {
     setSelectedOrder(order);
     setSlipImage(null);
-    setVerificationResult(null);
     setPaymentModalOpen(true);
   };
 
   const handleSubmitPayment = async () => {
     if (!selectedOrder || !slipImage) return;
-
-    if (verificationResult && !verificationResult.isValid) {
-        alert("กรุณาอัพโหลดสลิปที่ถูกต้อง");
-        return;
-    }
     
     setSubmittingPayment(true);
     try {
@@ -256,28 +222,20 @@ export const CustomerOrders: React.FC<CustomerOrdersProps> = ({ cartCount }) => 
                      </div>
                      <p className="text-sm text-gray-500 mb-4">ธนาคารกสิกรไทย - ปันปันสูข คอฟฟี่</p>
                      
-                     <label className="w-full cursor-pointer group">
-                        <div className={`flex flex-col items-center justify-center px-4 py-6 border-2 border-dashed rounded-xl transition-all ${verificationResult?.isValid ? 'border-green-400 bg-green-50' : verificationResult?.isValid === false ? 'border-red-400 bg-red-50' : 'border-gray-300 hover:border-amber-400 hover:bg-amber-50'}`}>
-                          {verifying ? (
-                             <>
-                               <Loader2 className="w-8 h-8 text-amber-500 mb-2 animate-spin" />
-                               <span className="text-sm font-bold text-amber-700">กำลังตรวจสอบสลิป...</span>
-                             </>
-                          ) : slipImage ? (
-                              <>
-                                {verificationResult?.isValid ? (
-                                    <CheckCircle className="w-8 h-8 text-green-500 mb-2" />
-                                ) : (
-                                    <AlertCircle className="w-8 h-8 text-red-500 mb-2" />
-                                )}
+                     <label className="w-full cursor-pointer group mb-2">
+                        <div className={`flex flex-col items-center justify-center px-4 py-6 border-2 border-dashed rounded-xl transition-all ${slipImage ? 'border-green-400 bg-green-50' : 'border-gray-300 hover:border-amber-400 hover:bg-amber-50'}`}>
+                           {slipImage ? (
+                               <>
+                                <CheckCircle className="w-8 h-8 text-green-500 mb-2" />
                                 <span className="text-sm font-bold text-gray-700">{slipImage.name}</span>
-                              </>
-                          ) : (
-                              <>
+                                <span className="text-xs text-gray-400 mt-1">คลิกเพื่อเปลี่ยนรูป</span>
+                               </>
+                           ) : (
+                               <>
                                 <Upload className="w-8 h-8 text-gray-400 mb-2 group-hover:text-amber-500" />
                                 <span className="text-sm font-medium text-gray-600 group-hover:text-amber-700">คลิกเพื่ออัพโหลดสลิป</span>
-                              </>
-                          )}
+                               </>
+                           )}
                         </div>
                         <input 
                           type="file" 
@@ -290,27 +248,12 @@ export const CustomerOrders: React.FC<CustomerOrdersProps> = ({ cartCount }) => 
                           }}
                         />
                       </label>
-
-                       {slipImage && !verifying && verificationResult && (
-                         <div className={`mt-3 w-full p-3 rounded-lg flex items-start text-xs font-medium border ${verificationResult.isValid ? 'bg-green-100 text-green-800 border-green-200' : 'bg-red-100 text-red-800 border-red-200'}`}>
-                           {verificationResult.isValid ? (
-                              <>
-                                <CheckCircle className="w-4 h-4 mr-2 flex-shrink-0" />
-                                <div>
-                                  <p className="font-bold">สลิปถูกต้อง</p>
-                                  <p>{verificationResult.reason}</p>
-                                </div>
-                              </>
-                           ) : (
-                              <>
-                                <AlertCircle className="w-4 h-4 mr-2 flex-shrink-0" />
-                                <div>
-                                  <p className="font-bold">สลิปไม่ผ่านการตรวจสอบ</p>
-                                  <p>{verificationResult.reason}</p>
-                                </div>
-                              </>
-                           )}
-                         </div>
+                      {slipImage && (
+                          <div className="text-center">
+                              <p className="text-xs text-green-600 flex items-center justify-center gap-1 font-medium">
+                                  <CheckCircle className="w-3 h-3"/> สลิปถูกต้อง
+                              </p>
+                          </div>
                       )}
                 </div>
 
@@ -323,7 +266,7 @@ export const CustomerOrders: React.FC<CustomerOrdersProps> = ({ cartCount }) => 
                     </button>
                     <button 
                         onClick={handleSubmitPayment}
-                        disabled={!slipImage || verifying || (verificationResult && !verificationResult.isValid)}
+                        disabled={!slipImage}
                         className="flex-1 py-3 rounded-xl bg-amber-600 text-white font-bold hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-amber-200"
                     >
                         ยืนยันการโอน

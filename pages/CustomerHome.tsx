@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Navbar } from '../components/Navbar';
 import { UserType, Product, ProductCategory, CartItem, ServingType } from '../types';
 import { getProducts } from '../services/dataService';
-import { Plus, Coffee, Sparkles, Star, Flame, Snowflake, Wind, Cookie } from 'lucide-react';
-import { SWEETNESS_LEVELS } from '../constants';
+import { Plus, Sparkles, Star, Flame, Snowflake, Wind, Cookie } from 'lucide-react';
+import { SWEETNESS_LEVELS, LOGO_URL } from '../constants';
 import { Footer } from '../components/Footer';
 
 interface CustomerHomeProps {
@@ -134,19 +134,30 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ addToCart, cartCount
       {/* Hero Section */}
       <div className="relative bg-amber-900 overflow-hidden shadow-lg">
         <div className="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
-        <div className="relative max-w-7xl mx-auto py-12 px-6 flex flex-col md:flex-row items-center justify-between">
-          <div className="text-white z-10 mb-6 md:mb-0">
-            <h2 className="text-4xl font-bold tracking-tight text-amber-50 leading-tight">ความสุข...<br/>ในทุกแก้วที่ดื่ม</h2>
-            <p className="text-amber-200 mt-2 text-lg font-light flex items-center">
-              <Star className="w-5 h-5 mr-2 text-yellow-400 fill-current" />
-              ปัน ปันสูข คอฟฟี่ - กาแฟเพื่อการศึกษา
+        <div className="relative max-w-7xl mx-auto py-10 px-6 flex flex-col items-center text-center">
+          
+          {/* Logo with Glow Effect */}
+          <div className="relative mb-6 transform hover:scale-105 transition-transform duration-500">
+             <div className="absolute inset-0 bg-amber-400 rounded-full blur-xl opacity-20 animate-pulse"></div>
+             <img 
+               src={LOGO_URL} 
+               alt="Logo" 
+               className="w-24 h-24 sm:w-32 sm:h-32 rounded-full border-4 border-amber-100/20 shadow-2xl relative z-10 object-cover"
+             />
+          </div>
+
+          <div className="text-white z-10">
+            <h2 className="text-3xl sm:text-5xl font-bold tracking-tight text-amber-50 leading-tight drop-shadow-md">
+              ปัญ ปันสุข คอฟฟี่
+            </h2>
+            <p className="text-amber-200/90 mt-3 text-sm sm:text-lg font-light flex items-center justify-center gap-2">
+              <Star className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-400 fill-current" />
+              <span>ความสุข... ในทุกแก้วที่ดื่ม</span>
+              <Star className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-400 fill-current" />
             </p>
           </div>
-          <div className="hidden md:block opacity-80 transform rotate-12 hover:rotate-0 transition-transform duration-700">
-            <Coffee className="w-40 h-40 text-amber-200" />
-          </div>
         </div>
-        <div className="absolute bottom-0 w-full h-8 bg-[#FDFBF7] rounded-t-3xl"></div>
+        <div className="absolute bottom-0 w-full h-6 bg-[#FDFBF7] rounded-t-[2rem]"></div>
       </div>
 
       {/* Categories */}
