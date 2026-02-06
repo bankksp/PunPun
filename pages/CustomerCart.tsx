@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { Navbar } from '../components/Navbar';
 import { CartItem, PaymentMethod, Order, OrderStatus, UserType } from '../types';
 import { QR_CODE_URL } from '../constants';
 import { createOrder } from '../services/dataService';
-import { Trash2, MapPin, Upload, CreditCard, Banknote, ArrowLeft, User, ShoppingBag } from 'lucide-react';
+import { verifySlipWithAI } from '../services/aiService';
+import { Trash2, MapPin, Upload, CreditCard, Banknote, ArrowLeft, User, ShoppingBag, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { LoadingModal } from '../components/LoadingModal';
 import { Footer } from '../components/Footer';
@@ -23,7 +25,35 @@ export const CustomerCart: React.FC<CustomerCartProps> = ({ cart, removeFromCart
   const [submitting, setSubmitting] = useState(false);
   const [orderComplete, setOrderComplete] = useState(false);
 
+  // Verification States
+  const [verifying, setVerifying] = useState(false);
+  const [verificationResult, setVerificationResult] = useState<{ isValid: boolean; reason: string } | null>(null);
+
   const total = cart.reduce((sum, item) => sum + item.appliedPrice, 0);
+
+  // Trigger verification when slipImage changes
+  useEffect(() => {
+    const checkSlip = async () => {
+      if (slipImage && paymentMethod === PaymentMethod.TRANSFER) {
+        setVerifying(true);
+        setVerificationResult(null);
+        
+        const result = await verifySlipWithAI(slipImage, total);
+        
+        setVerifying(false);
+        setVerificationResult({
+          isValid: result.isValid,
+          reason: result.reason
+        });
+      } else {
+        setVerificationResult(null);
+      }
+    };
+
+    if (slipImage) {
+      checkSlip();
+    }
+  }, [slipImage, paymentMethod, total]);
 
   const convertToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -37,9 +67,16 @@ export const CustomerCart: React.FC<CustomerCartProps> = ({ cart, removeFromCart
   const handlePlaceOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (cart.length === 0) return;
-    if (paymentMethod === PaymentMethod.TRANSFER && !slipImage) {
-      alert("กรุณาแนบสลิปโอนเงิน");
-      return;
+    
+    if (paymentMethod === PaymentMethod.TRANSFER) {
+      if (!slipImage) {
+        alert("กรุณาแนบสลิปโอนเงิน");
+        return;
+      }
+      if (verificationResult && !verificationResult.isValid) {
+        alert(`สลิปไม่ถูกต้อง: ${verificationResult.reason}`);
+        return;
+      }
     }
 
     setSubmitting(true);
@@ -84,14 +121,12 @@ export const CustomerCart: React.FC<CustomerCartProps> = ({ cart, removeFromCart
     <div className="min-h-screen bg-[#FDFBF7] pb-10 relative flex flex-col">
       <Navbar cartCount={cart.length} />
 
-      {/* Cute Loading Modal */}
       <LoadingModal 
         isOpen={submitting} 
         type="loading" 
         message="กำลังส่งออเดอร์ไปที่ร้าน..." 
       />
 
-      {/* Cute Success Modal */}
       <LoadingModal 
         isOpen={orderComplete} 
         type="success" 
@@ -131,7 +166,6 @@ export const CustomerCart: React.FC<CustomerCartProps> = ({ cart, removeFromCart
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             
-            {/* Order Items */}
             <div className="lg:col-span-2 space-y-6">
               <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
                 <div className="p-6 space-y-6">
@@ -182,7 +216,6 @@ export const CustomerCart: React.FC<CustomerCartProps> = ({ cart, removeFromCart
               </div>
             </div>
 
-            {/* Checkout Form */}
             <div className="lg:col-span-1">
               <form onSubmit={handlePlaceOrder} className="bg-white rounded-3xl shadow-lg shadow-gray-100 border border-gray-100 p-6 sticky top-24">
                 <h3 className="font-bold text-lg mb-6 text-gray-900 flex items-center">
@@ -226,7 +259,11 @@ export const CustomerCart: React.FC<CustomerCartProps> = ({ cart, removeFromCart
                     <div className="grid grid-cols-2 gap-3">
                       <button
                         type="button"
-                        onClick={() => setPaymentMethod(PaymentMethod.CASH)}
+                        onClick={() => {
+                           setPaymentMethod(PaymentMethod.CASH);
+                           setSlipImage(null);
+                           setVerificationResult(null);
+                        }}
                         className={`py-3 px-3 rounded-xl border flex flex-col items-center justify-center text-sm font-medium transition-all ${
                           paymentMethod === PaymentMethod.CASH 
                             ? 'bg-amber-50 border-amber-500 text-amber-800 ring-1 ring-amber-500/20 shadow-sm' 
@@ -259,9 +296,20 @@ export const CustomerCart: React.FC<CustomerCartProps> = ({ cart, removeFromCart
                       </div>
                       
                       <label className="block w-full cursor-pointer group">
-                        <div className="flex items-center justify-center px-4 py-3 bg-white border border-gray-300 border-dashed rounded-xl text-sm text-gray-600 hover:bg-gray-50 hover:border-amber-400 hover:text-amber-700 transition-all">
-                          <Upload className="w-4 h-4 mr-2" />
-                          {slipImage ? 'เปลี่ยนรูปสลิป' : 'คลิกเพื่อแนบสลิป'}
+                        <div className={`flex flex-col items-center justify-center px-4 py-3 bg-white border border-dashed rounded-xl text-sm transition-all ${verificationResult?.isValid ? 'border-green-500 bg-green-50' : verificationResult?.isValid === false ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-amber-400'}`}>
+                          {verifying ? (
+                             <div className="flex items-center text-amber-600">
+                               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                               กำลังตรวจสอบสลิป...
+                             </div>
+                          ) : (
+                             <>
+                                <Upload className={`w-4 h-4 mr-2 ${verificationResult?.isValid ? 'text-green-500' : 'text-gray-400'}`} />
+                                <span className={verificationResult?.isValid ? 'text-green-700 font-medium' : 'text-gray-600'}>
+                                   {slipImage ? 'เปลี่ยนรูปสลิป' : 'คลิกเพื่อแนบสลิป'}
+                                </span>
+                             </>
+                          )}
                         </div>
                         <input 
                           type="file" 
@@ -274,10 +322,27 @@ export const CustomerCart: React.FC<CustomerCartProps> = ({ cart, removeFromCart
                           }}
                         />
                       </label>
-                      {slipImage && (
-                         <div className="mt-3 flex items-center justify-center text-xs text-green-600 font-medium bg-green-50 py-2 rounded-lg">
-                           <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-                           แนบสลิปเรียบร้อย
+
+                      {/* Verification Status Feedback */}
+                      {slipImage && !verifying && verificationResult && (
+                         <div className={`mt-3 p-3 rounded-lg flex items-start text-xs font-medium border ${verificationResult.isValid ? 'bg-green-100 text-green-800 border-green-200' : 'bg-red-100 text-red-800 border-red-200'}`}>
+                           {verificationResult.isValid ? (
+                              <>
+                                <CheckCircle className="w-4 h-4 mr-2 flex-shrink-0" />
+                                <div>
+                                  <p className="font-bold">สลิปถูกต้อง</p>
+                                  <p>{verificationResult.reason}</p>
+                                </div>
+                              </>
+                           ) : (
+                              <>
+                                <AlertCircle className="w-4 h-4 mr-2 flex-shrink-0" />
+                                <div>
+                                  <p className="font-bold">สลิปไม่ผ่านการตรวจสอบ</p>
+                                  <p>{verificationResult.reason}</p>
+                                </div>
+                              </>
+                           )}
                          </div>
                       )}
                     </div>
@@ -286,10 +351,10 @@ export const CustomerCart: React.FC<CustomerCartProps> = ({ cart, removeFromCart
 
                 <button 
                   type="submit"
-                  disabled={submitting}
-                  className="w-full mt-8 py-4 bg-amber-600 text-white rounded-xl font-bold text-lg hover:bg-amber-700 shadow-xl shadow-amber-200 disabled:opacity-70 disabled:cursor-not-allowed transition-all transform hover:-translate-y-0.5 active:translate-y-0"
+                  disabled={submitting || (paymentMethod === PaymentMethod.TRANSFER && (!verificationResult?.isValid || verifying))}
+                  className="w-full mt-8 py-4 bg-amber-600 text-white rounded-xl font-bold text-lg hover:bg-amber-700 shadow-xl shadow-amber-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:-translate-y-0.5 active:translate-y-0"
                 >
-                  ยืนยันการสั่งซื้อ • ฿{total}
+                  {paymentMethod === PaymentMethod.TRANSFER && verifying ? 'กำลังตรวจสอบสลิป...' : `ยืนยันการสั่งซื้อ • ฿${total}`}
                 </button>
               </form>
             </div>

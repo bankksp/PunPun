@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Lock, User } from 'lucide-react';
 import { LOGO_URL, APP_NAME } from '../constants';
@@ -10,6 +10,14 @@ export const AdminLogin: React.FC = () => {
   const [remember, setRemember] = useState(false);
   const navigate = useNavigate();
 
+  useEffect(() => {
+    // Auto-login check
+    const token = localStorage.getItem('admin_token');
+    if (token) {
+      navigate('/admin/dashboard');
+    }
+  }, [navigate]);
+
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     // Simple mock validation
@@ -19,7 +27,7 @@ export const AdminLogin: React.FC = () => {
       }
       navigate('/admin/dashboard');
     } else {
-      alert('รหัสผ่านไม่ถูกต้อง (ลองใช้ admin / admin123)');
+      alert('รหัสผ่านไม่ถูกต้อง');
     }
   };
 
@@ -87,12 +95,6 @@ export const AdminLogin: React.FC = () => {
             >
               เข้าสู่ระบบ
             </button>
-
-            <div className="text-center mt-4">
-               <p className="text-xs text-gray-400">
-                 Default: <span className="font-mono text-gray-500 bg-gray-100 px-1 rounded">admin</span> / <span className="font-mono text-gray-500 bg-gray-100 px-1 rounded">admin123</span>
-               </p>
-            </div>
           </form>
         </div>
       </div>

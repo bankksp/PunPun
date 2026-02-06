@@ -1,6 +1,6 @@
 import { Product, ProductCategory, ServingType } from './types';
 
-export const APP_NAME = "ปัน ปันสูข คอฟฟี่";
+export const APP_NAME = "ปัญ ปันสุข คอฟฟี่";
 export const LOGO_URL = "https://img2.pic.in.th/pic/IMG_8516c84ae26ba04d7a03.jpg";
 export const QR_CODE_URL = "https://img5.pic.in.th/file/secure-sv1/IMG_854134530da175ca5629.jpg";
 

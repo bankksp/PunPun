@@ -5,10 +5,9 @@ import { Product, Order, OrderStatus, ServingType, ProductCategory, PaymentMetho
   ===================================================================================
   !!! IMPORTANT: GOOGLE APPS SCRIPT BACKEND CODE !!!
   
-  The backend expects a JSON string for prices or flattened columns.
-  For this implementation, we will assume the data is being stored flexibly.
-  If using real Google Sheets, you might need to stringify the 'prices' object 
-  into a single cell or split it into 9 columns.
+  Updated for SPEED: We now use "Optimistic Updates". 
+  We update the local cache/state immediately and send the API request in the background.
+  This makes the app feel "Instant" to the user.
   ===================================================================================
 */
 
@@ -77,10 +76,9 @@ const apiRequest = async (action: string, method: 'GET' | 'POST' = 'GET', body?:
 export const getProducts = async (): Promise<Product[]> => {
   // If we have products in memory (from cache), we return them implicitly, 
   // but we also trigger a background fetch to update freshness.
-  // However, the caller awaits this.
   
   // Strategy: The caller (CustomerHome) should check cache first. 
-  // Here we just fetch fresh data and update cache.
+  // Here we fetch fresh data.
   const result = await apiRequest('getProducts');
   if (result && Array.isArray(result) && result.length > 0) {
     // Transform backend data to match new Product interface if necessary
@@ -99,7 +97,7 @@ export const getProducts = async (): Promise<Product[]> => {
 };
 
 export const saveProduct = async (product: Product): Promise<void> => {
-  // Optimistic update
+  // 1. Optimistic update (Instant UI update)
   const index = products.findIndex(p => p.id === product.id);
   if (index > -1) {
     products[index] = product;
@@ -110,24 +108,29 @@ export const saveProduct = async (product: Product): Promise<void> => {
   // Update Cache
   localStorage.setItem(CACHE_KEY_PRODUCTS, JSON.stringify(products));
 
-  await apiRequest('saveProduct', 'POST', {
+  // 2. Background Sync (Fire and Forget - don't await to block UI)
+  apiRequest('saveProduct', 'POST', {
     action: 'saveProduct',
     data: product
-  });
+  }).catch(err => console.error("Background sync failed:", err));
 };
 
 export const deleteProduct = async (productId: string): Promise<void> => {
+  // 1. Optimistic Update
   products = products.filter(p => p.id !== productId);
   // Update Cache
   localStorage.setItem(CACHE_KEY_PRODUCTS, JSON.stringify(products));
 
-  await apiRequest('deleteProduct', 'POST', {
+  // 2. Background Sync
+  apiRequest('deleteProduct', 'POST', {
     action: 'deleteProduct',
     id: productId
-  });
+  }).catch(err => console.error("Background sync failed:", err));
 };
 
 export const getOrders = async (): Promise<Order[]> => {
+  // We return the cached orders immediately if the component uses them from the exported 'orders' variable.
+  // This function fetches fresh data.
   const result = await apiRequest('getOrders');
   if (result && Array.isArray(result)) {
     orders = result.sort((a: Order, b: Order) => b.timestamp - a.timestamp);
@@ -139,52 +142,63 @@ export const getOrders = async (): Promise<Order[]> => {
 };
 
 export const createOrder = async (order: Order, slipBase64?: string): Promise<void> => {
+  // 1. Optimistic Update (Instant UI update)
+  // We treat the order as success immediately
   orders.unshift(order);
-  // Update Cache immediately
   localStorage.setItem(CACHE_KEY_ORDERS, JSON.stringify(orders));
 
+  // 2. Background Sync (Fire and Forget)
+  // We do NOT await this. The UI proceeds to "Success" screen immediately.
   const payload = {
     action: 'createOrder',
     data: order,
     slipImage: slipBase64
   };
   
-  await apiRequest('createOrder', 'POST', payload);
+  apiRequest('createOrder', 'POST', payload)
+    .then(res => console.log("Order synced to cloud", res))
+    .catch(err => console.error("Order sync failed", err));
 };
 
 export const updateOrderStatus = async (orderId: string, status: OrderStatus): Promise<void> => {
+  // 1. Optimistic Update
   const orderIndex = orders.findIndex(o => o.id === orderId);
   if (orderIndex > -1) {
     orders[orderIndex] = { ...orders[orderIndex], status };
     localStorage.setItem(CACHE_KEY_ORDERS, JSON.stringify(orders));
   }
 
+  // 2. Background Sync
   const payload = {
     action: 'updateOrderStatus',
     id: orderId,
     status: status
   };
 
-  await apiRequest('updateOrderStatus', 'POST', payload);
+  apiRequest('updateOrderStatus', 'POST', payload).catch(console.error);
 };
 
 export const updateOrderPayment = async (orderId: string, slipBase64: string): Promise<void> => {
-    // Optimistic Update
+    // 1. Optimistic Update
     const orderIndex = orders.findIndex(o => o.id === orderId);
     if (orderIndex > -1) {
       orders[orderIndex] = { 
           ...orders[orderIndex], 
           paymentMethod: PaymentMethod.TRANSFER,
-          slipUrl: 'pending_upload...' 
+          slipUrl: 'pending_upload...' // Placeholder until refreshed
       };
       localStorage.setItem(CACHE_KEY_ORDERS, JSON.stringify(orders));
     }
 
+    // 2. Background Sync
     const payload = {
         action: 'updateOrderPayment',
         id: orderId,
         slipImage: slipBase64
     };
 
-    await apiRequest('updateOrderPayment', 'POST', payload);
+    // Note: For image uploads, we might ideally want to wait, but to be fast, we return.
+    // However, for payment slips, user might want confirmation. 
+    // But consistent with "Faster", we return immediately.
+    apiRequest('updateOrderPayment', 'POST', payload).catch(console.error);
 };
