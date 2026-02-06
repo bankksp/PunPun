@@ -3,39 +3,52 @@ import { Navbar } from '../components/Navbar';
 import { getOrders } from '../services/dataService';
 import { Order, OrderStatus, UserType } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
-import { Download, Calendar } from 'lucide-react';
+import { Download, Calendar, CheckCircle, Clock } from 'lucide-react';
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
+const COLORS = ['#10B981', '#F59E0B', '#3B82F6', '#EF4444']; // Green, Amber, Blue, Red
 
 export const AdminDashboard: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [filter, setFilter] = useState<'Day' | 'Month' | 'Year'>('Day');
 
   useEffect(() => {
-    getOrders().then(setOrders);
+    // 1. Try to load from cache first for instant render
+    const cached = localStorage.getItem('orders_cache');
+    if (cached) {
+      setOrders(JSON.parse(cached));
+    }
+    
+    // 2. Fetch fresh data
+    getOrders().then(data => {
+      setOrders(data);
+      localStorage.setItem('orders_cache', JSON.stringify(data));
+    });
   }, []);
 
-  const totalRevenue = orders.reduce((sum, order) => sum + order.totalAmount, 0);
-  const teacherOrders = orders.filter(o => o.userType === UserType.TEACHER).length;
-  const studentOrders = orders.filter(o => o.userType === UserType.STUDENT).length;
-  const generalOrders = orders.filter(o => o.userType === UserType.GENERAL).length;
+  // Filter only COMPLETED orders for Revenue and Success Count
+  const completedOrders = orders.filter(o => o.status === OrderStatus.COMPLETED);
+  const pendingOrders = orders.filter(o => o.status === OrderStatus.PENDING || o.status === OrderStatus.PREPARING);
+
+  const totalRevenue = completedOrders.reduce((sum, order) => sum + order.totalAmount, 0);
+  const teacherRevenue = completedOrders.filter(o => o.userType === UserType.TEACHER).reduce((sum, o) => sum + o.totalAmount, 0);
+  const studentRevenue = completedOrders.filter(o => o.userType === UserType.STUDENT).reduce((sum, o) => sum + o.totalAmount, 0);
+  const generalRevenue = completedOrders.filter(o => o.userType === UserType.GENERAL).reduce((sum, o) => sum + o.totalAmount, 0);
 
   // Process data for charts
   const statusData = [
-    { name: 'Pending', value: orders.filter(o => o.status === OrderStatus.PENDING).length },
-    { name: 'Preparing', value: orders.filter(o => o.status === OrderStatus.PREPARING).length },
-    { name: 'Completed', value: orders.filter(o => o.status === OrderStatus.COMPLETED).length },
-    { name: 'Cancelled', value: orders.filter(o => o.status === OrderStatus.CANCELLED).length },
+    { name: 'สำเร็จ (Completed)', value: completedOrders.length },
+    { name: 'รอดำเนินการ (Pending)', value: pendingOrders.length },
+    { name: 'กำลังส่ง (Delivering)', value: orders.filter(o => o.status === OrderStatus.DELIVERING).length },
+    { name: 'ยกเลิก (Cancelled)', value: orders.filter(o => o.status === OrderStatus.CANCELLED).length },
   ].filter(d => d.value > 0);
 
   const revenueData = [
-    { name: 'ทั่วไป', amount: orders.filter(o => o.userType === UserType.GENERAL).reduce((s, o) => s + o.totalAmount, 0) },
-    { name: 'ครู', amount: orders.filter(o => o.userType === UserType.TEACHER).reduce((s, o) => s + o.totalAmount, 0) },
-    { name: 'นักเรียน', amount: orders.filter(o => o.userType === UserType.STUDENT).reduce((s, o) => s + o.totalAmount, 0) },
+    { name: 'ทั่วไป', amount: generalRevenue },
+    { name: 'ครู', amount: teacherRevenue },
+    { name: 'นักเรียน', amount: studentRevenue },
   ];
 
   const handleExport = () => {
-    // Simulation of export
     const csvContent = "data:text/csv;charset=utf-8," 
       + "Date,Order ID,Customer,Type,Amount,Status\n"
       + orders.map(o => `${new Date(o.timestamp).toLocaleDateString()},${o.id},${o.customerName},${o.userType},${o.totalAmount},${o.status}`).join("\n");
@@ -54,7 +67,7 @@ export const AdminDashboard: React.FC = () => {
       
       <div className="max-w-7xl mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-2xl font-bold text-gray-800">แดชบอร์ดภาพรวม</h1>
+          <h1 className="text-2xl font-bold text-gray-800">แดชบอร์ดภาพรวม (เฉพาะรายการสำเร็จ)</h1>
           <div className="flex gap-2">
             <div className="flex bg-white rounded-lg shadow-sm border border-gray-200 p-1">
               {['Day', 'Month', 'Year'].map((f) => (
@@ -79,28 +92,44 @@ export const AdminDashboard: React.FC = () => {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-            <h3 className="text-gray-500 text-sm mb-1">ยอดขายรวม</h3>
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 border-l-4 border-l-green-500">
+            <h3 className="text-gray-500 text-sm mb-1 flex items-center gap-1">
+              <CheckCircle className="w-4 h-4 text-green-500"/> ยอดขาย (ส่งสำเร็จ)
+            </h3>
             <p className="text-3xl font-bold text-gray-800">฿{totalRevenue.toLocaleString()}</p>
+            <p className="text-xs text-gray-400 mt-2">จากออเดอร์ที่ส่งมอบแล้วเท่านั้น</p>
+          </div>
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 border-l-4 border-l-blue-500">
+            <h3 className="text-gray-500 text-sm mb-1">จำนวนออเดอร์ (ส่งสำเร็จ)</h3>
+            <p className="text-3xl font-bold text-blue-600">{completedOrders.length} <span className="text-sm text-gray-400 font-normal">รายการ</span></p>
+          </div>
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 border-l-4 border-l-yellow-500">
+            <h3 className="text-gray-500 text-sm mb-1 flex items-center gap-1">
+              <Clock className="w-4 h-4 text-yellow-500"/> รอดำเนินการ
+            </h3>
+            <p className="text-3xl font-bold text-yellow-600">{pendingOrders.length} <span className="text-sm text-gray-400 font-normal">รายการ</span></p>
+            <p className="text-xs text-gray-400 mt-2">ต้องรีบจัดทำ!</p>
           </div>
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-            <h3 className="text-gray-500 text-sm mb-1">จำนวนออเดอร์</h3>
-            <p className="text-3xl font-bold text-amber-600">{orders.length}</p>
-          </div>
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-            <h3 className="text-gray-500 text-sm mb-1">ลูกค้า (ทั่วไป/ครู)</h3>
-            <p className="text-3xl font-bold text-blue-600">{generalOrders + teacherOrders}</p>
-          </div>
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-            <h3 className="text-gray-500 text-sm mb-1">ลูกค้า (นักเรียน)</h3>
-            <p className="text-3xl font-bold text-green-600">{studentOrders}</p>
+             <h3 className="text-gray-500 text-sm mb-1">ลูกค้า (สำเร็จ)</h3>
+             <div className="flex justify-between items-end mt-1">
+                <div className="text-center">
+                   <span className="block text-xl font-bold text-gray-700">{teacherRevenue > 0 ? 'ครู' : '-'}</span>
+                   <span className="text-xs text-gray-400">฿{teacherRevenue.toLocaleString()}</span>
+                </div>
+                <div className="h-8 w-px bg-gray-200"></div>
+                <div className="text-center">
+                   <span className="block text-xl font-bold text-gray-700">{studentRevenue > 0 ? 'นร.' : '-'}</span>
+                   <span className="text-xs text-gray-400">฿{studentRevenue.toLocaleString()}</span>
+                </div>
+             </div>
           </div>
         </div>
 
         {/* Charts */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 h-96">
-            <h3 className="text-lg font-bold text-gray-800 mb-6">สถานะการสั่งซื้อ</h3>
+            <h3 className="text-lg font-bold text-gray-800 mb-6">สัดส่วนสถานะออเดอร์</h3>
             <ResponsiveContainer width="100%" height="80%">
               <PieChart>
                 <Pie
@@ -124,13 +153,17 @@ export const AdminDashboard: React.FC = () => {
           </div>
 
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 h-96">
-            <h3 className="text-lg font-bold text-gray-800 mb-6">ยอดขายแยกตามประเภทลูกค้า</h3>
+            <h3 className="text-lg font-bold text-gray-800 mb-6">ยอดขาย (ส่งสำเร็จ) แยกตามลูกค้า</h3>
             <ResponsiveContainer width="100%" height="80%">
               <BarChart data={revenueData}>
                 <XAxis dataKey="name" />
                 <YAxis />
-                <Tooltip />
-                <Bar dataKey="amount" fill="#d97706" radius={[4, 4, 0, 0]} />
+                <Tooltip formatter={(value) => `฿${value.toLocaleString()}`} />
+                <Bar dataKey="amount" fill="#d97706" radius={[4, 4, 0, 0]}>
+                   {revenueData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={index === 1 ? '#3B82F6' : index === 2 ? '#10B981' : '#F59E0B'} />
+                   ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>

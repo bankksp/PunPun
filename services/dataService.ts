@@ -12,9 +12,32 @@ import { Product, Order, OrderStatus, ServingType, ProductCategory, PaymentMetho
   ===================================================================================
 */
 
-// Fallback in-memory storage used if API fails or for optimistic updates
-let products: Product[] = [...INITIAL_PRODUCTS];
+// Cache keys
+const CACHE_KEY_PRODUCTS = 'products_cache';
+const CACHE_KEY_ORDERS = 'orders_cache';
+
+// Initialize in-memory storage from Cache if available to speed up first load
+let products: Product[] = [];
+try {
+    const cachedProducts = localStorage.getItem(CACHE_KEY_PRODUCTS);
+    if (cachedProducts) {
+        products = JSON.parse(cachedProducts);
+    } else {
+        products = [...INITIAL_PRODUCTS];
+    }
+} catch (e) {
+    products = [...INITIAL_PRODUCTS];
+}
+
 let orders: Order[] = [];
+try {
+    const cachedOrders = localStorage.getItem(CACHE_KEY_ORDERS);
+    if (cachedOrders) {
+        orders = JSON.parse(cachedOrders);
+    }
+} catch (e) {
+    orders = [];
+}
 
 // Helper to make API requests
 const apiRequest = async (action: string, method: 'GET' | 'POST' = 'GET', body?: any) => {
@@ -52,6 +75,12 @@ const apiRequest = async (action: string, method: 'GET' | 'POST' = 'GET', body?:
 };
 
 export const getProducts = async (): Promise<Product[]> => {
+  // If we have products in memory (from cache), we return them implicitly, 
+  // but we also trigger a background fetch to update freshness.
+  // However, the caller awaits this.
+  
+  // Strategy: The caller (CustomerHome) should check cache first. 
+  // Here we just fetch fresh data and update cache.
   const result = await apiRequest('getProducts');
   if (result && Array.isArray(result) && result.length > 0) {
     // Transform backend data to match new Product interface if necessary
@@ -60,6 +89,10 @@ export const getProducts = async (): Promise<Product[]> => {
       ...p,
       prices: p.prices || {} // Ensure prices object exists
     }));
+    
+    // Update Cache
+    localStorage.setItem(CACHE_KEY_PRODUCTS, JSON.stringify(products));
+    
     return products;
   }
   return products;
@@ -73,6 +106,9 @@ export const saveProduct = async (product: Product): Promise<void> => {
   } else {
     products.push(product);
   }
+  
+  // Update Cache
+  localStorage.setItem(CACHE_KEY_PRODUCTS, JSON.stringify(products));
 
   await apiRequest('saveProduct', 'POST', {
     action: 'saveProduct',
@@ -82,6 +118,8 @@ export const saveProduct = async (product: Product): Promise<void> => {
 
 export const deleteProduct = async (productId: string): Promise<void> => {
   products = products.filter(p => p.id !== productId);
+  // Update Cache
+  localStorage.setItem(CACHE_KEY_PRODUCTS, JSON.stringify(products));
 
   await apiRequest('deleteProduct', 'POST', {
     action: 'deleteProduct',
@@ -93,6 +131,8 @@ export const getOrders = async (): Promise<Order[]> => {
   const result = await apiRequest('getOrders');
   if (result && Array.isArray(result)) {
     orders = result.sort((a: Order, b: Order) => b.timestamp - a.timestamp);
+    // Update Cache
+    localStorage.setItem(CACHE_KEY_ORDERS, JSON.stringify(orders));
     return orders;
   }
   return orders;
@@ -100,6 +140,8 @@ export const getOrders = async (): Promise<Order[]> => {
 
 export const createOrder = async (order: Order, slipBase64?: string): Promise<void> => {
   orders.unshift(order);
+  // Update Cache immediately
+  localStorage.setItem(CACHE_KEY_ORDERS, JSON.stringify(orders));
 
   const payload = {
     action: 'createOrder',
@@ -114,6 +156,7 @@ export const updateOrderStatus = async (orderId: string, status: OrderStatus): P
   const orderIndex = orders.findIndex(o => o.id === orderId);
   if (orderIndex > -1) {
     orders[orderIndex] = { ...orders[orderIndex], status };
+    localStorage.setItem(CACHE_KEY_ORDERS, JSON.stringify(orders));
   }
 
   const payload = {
@@ -134,6 +177,7 @@ export const updateOrderPayment = async (orderId: string, slipBase64: string): P
           paymentMethod: PaymentMethod.TRANSFER,
           slipUrl: 'pending_upload...' 
       };
+      localStorage.setItem(CACHE_KEY_ORDERS, JSON.stringify(orders));
     }
 
     const payload = {

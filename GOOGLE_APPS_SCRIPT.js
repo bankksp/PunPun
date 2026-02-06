@@ -13,6 +13,9 @@ const FOLDER_ID = "1e9YhN5GHtDdKHqoqkkeSKu8jECAUeY74";
 // Google Chat Webhook URL
 const GOOGLE_CHAT_WEBHOOK_URL = "https://chat.googleapis.com/v1/spaces/AAQAGauDZf0/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=U6Oeox5kfhDz7X-zlQ4ScTQv3Kn6B5lOfK3_w4T_EnM";
 
+// Cache Keys
+const CACHE_KEY_PRODUCTS = "products_json";
+
 function doGet(e) {
   return handleRequest(e);
 }
@@ -23,28 +26,42 @@ function doPost(e) {
 
 function handleRequest(e) {
   const lock = LockService.getScriptLock();
-  lock.tryLock(20000); // Wait up to 20 seconds
+  // Reduce wait time to fail faster if needed, but for writes we need safety
+  // For reads we should avoid lock if using cache
+  
+  let action = e.parameter.action;
+  let params = e.parameter;
+  
+  if (e.postData && e.postData.contents) {
+    const postData = JSON.parse(e.postData.contents);
+    action = postData.action || action;
+    params = postData;
+  }
 
+  // READ actions: Try not to use Lock if possible, or use Cache
+  if (action === "getProducts") {
+    return responseJSON(getProductsWithCache());
+  } else if (action === "getOrders") {
+    // Orders change frequently, better not to cache too aggressively on server or strictly lock
+    return responseJSON(getOrders());
+  }
+
+  // WRITE actions: Use Lock
   try {
-    const doc = SpreadsheetApp.getActiveSpreadsheet();
-    let action = e.parameter.action;
-    let params = e.parameter;
-    
-    // Handle POST data (JSON body)
-    if (e.postData && e.postData.contents) {
-      const postData = JSON.parse(e.postData.contents);
-      action = postData.action || action;
-      params = postData;
-    }
+    lock.tryLock(20000); 
 
-    if (action === "getProducts") {
-      return responseJSON(getProducts(doc));
-    } else if (action === "saveProduct") {
-      return responseJSON(saveProduct(doc, params.data));
+    const doc = SpreadsheetApp.getActiveSpreadsheet();
+
+    if (action === "saveProduct") {
+      const res = saveProduct(doc, params.data);
+      // Invalidate Cache
+      CacheService.getScriptCache().remove(CACHE_KEY_PRODUCTS);
+      return responseJSON(res);
     } else if (action === "deleteProduct") {
-      return responseJSON(deleteProduct(doc, params.id));
-    } else if (action === "getOrders") {
-      return responseJSON(getOrders(doc));
+      const res = deleteProduct(doc, params.id);
+      // Invalidate Cache
+      CacheService.getScriptCache().remove(CACHE_KEY_PRODUCTS);
+      return responseJSON(res);
     } else if (action === "createOrder") {
       return responseJSON(createOrder(doc, params.data, params.slipImage));
     } else if (action === "updateOrderStatus") {
@@ -95,7 +112,26 @@ function sendChatNotification(message) {
 // Logic Functions
 // -------------------------------------------------------------------
 
+function getProductsWithCache() {
+  const cache = CacheService.getScriptCache();
+  const cached = cache.get(CACHE_KEY_PRODUCTS);
+  
+  if (cached) {
+    return JSON.parse(cached);
+  }
+  
+  const doc = SpreadsheetApp.getActiveSpreadsheet();
+  const products = getProducts(doc);
+  
+  // Cache for 20 minutes (1200 seconds)
+  cache.put(CACHE_KEY_PRODUCTS, JSON.stringify(products), 1200);
+  
+  return products;
+}
+
 function getProducts(doc) {
+  // Use active doc if passed, otherwise get it (for cache miss scenarios)
+  if (!doc) doc = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = getOrCreateSheet(doc, "Products");
   const data = getData(sheet);
   return data.map(row => ({
@@ -172,6 +208,7 @@ function deleteProduct(doc, id) {
 }
 
 function getOrders(doc) {
+  if (!doc) doc = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = getOrCreateSheet(doc, "Orders");
   const data = getData(sheet);
   return data.map(row => ({

@@ -12,7 +12,16 @@ interface CustomerHomeProps {
 }
 
 export const CustomerHome: React.FC<CustomerHomeProps> = ({ addToCart, cartCount }) => {
-  const [products, setProducts] = useState<Product[]>([]);
+  // Initialize with cached products if available (instant load)
+  const [products, setProducts] = useState<Product[]>(() => {
+    try {
+      const cached = localStorage.getItem('products_cache');
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
+  
   const [activeCategory, setActiveCategory] = useState<string>('All');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [sweetness, setSweetness] = useState<string>(SWEETNESS_LEVELS[2]); // Default 50%
@@ -21,16 +30,19 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ addToCart, cartCount
   // Selection State
   const [selectedServingType, setSelectedServingType] = useState<ServingType | null>(null);
 
-  const [loading, setLoading] = useState(true);
+  // Loading state is only true if we have NO products at all
+  const [loading, setLoading] = useState(products.length === 0);
 
   // Gallery State for Modal
   const [activeMedia, setActiveMedia] = useState<string | null>(null);
   const [isVideoActive, setIsVideoActive] = useState(false);
 
   useEffect(() => {
+    // Fetch fresh data in background
     getProducts().then(data => {
       setProducts(data);
       setLoading(false);
+      // Update cache handled in dataService
     });
   }, []);
 
@@ -371,8 +383,8 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ addToCart, cartCount
               </button>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };
