@@ -2,8 +2,18 @@
 <html lang="th">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+    <!-- App Icons / Logo Configuration -->
+    <link rel="icon" href="https://img2.pic.in.th/pic/IMG_8516c84ae26ba04d7a03.jpg" />
+    <link rel="apple-touch-icon" href="https://img2.pic.in.th/pic/IMG_8516c84ae26ba04d7a03.jpg" />
+    
+    <!-- Mobile Web App Capability -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#FFF8F0" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="ปันสูข คอฟฟี่" />
+
     <title>ปัน ปันสูข คอฟฟี่</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -11,6 +21,7 @@
       body {
         font-family: 'Prompt', sans-serif;
         background-color: #f9fafb;
+        -webkit-tap-highlight-color: transparent; /* Remove tap highlight on mobile */
       }
       /* Custom Scrollbar */
       ::-webkit-scrollbar {
