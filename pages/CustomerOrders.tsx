@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect } from 'react';
 import { Navbar } from '../components/Navbar';
-import { getOrders, updateOrderPayment } from '../services/dataService';
+import { getOrders, updateOrderPayment, compressImage } from '../services/dataService';
 import { verifySlipWithAI } from '../services/aiService';
 import { Order, OrderStatus, PaymentMethod } from '../types';
 import { Search, Clock, MapPin, User, Upload, CheckCircle, RefreshCcw, CreditCard, Banknote, XCircle, ClipboardList, Loader2, AlertCircle } from 'lucide-react';
@@ -41,11 +40,10 @@ export const CustomerOrders: React.FC<CustomerOrdersProps> = ({ cartCount }) => 
     fetchOrders();
     const interval = setInterval(() => {
         getOrders().then(setOrders);
-    }, 15000); // Auto refresh every 15s
+    }, 15000); 
     return () => clearInterval(interval);
   }, []);
 
-  // Verification Logic Trigger
   useEffect(() => {
       const checkSlip = async () => {
         if (slipImage && selectedOrder) {
@@ -96,15 +94,6 @@ export const CustomerOrders: React.FC<CustomerOrdersProps> = ({ cartCount }) => 
     }
   };
 
-  const convertToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = error => reject(error);
-    });
-  };
-
   const handleOpenPayment = (order: Order) => {
     setSelectedOrder(order);
     setSlipImage(null);
@@ -122,13 +111,13 @@ export const CustomerOrders: React.FC<CustomerOrdersProps> = ({ cartCount }) => 
     
     setSubmittingPayment(true);
     try {
-        const base64 = await convertToBase64(slipImage);
+        const base64 = await compressImage(slipImage, 600, 0.6);
         await updateOrderPayment(selectedOrder.id, base64);
         
         setPaymentModalOpen(false);
         setSuccessModal(true);
         setSubmittingPayment(false);
-        fetchOrders(); // Refresh data
+        fetchOrders();
     } catch (e) {
         console.error(e);
         alert("เกิดข้อผิดพลาดในการอัพโหลดสลิป");
@@ -140,7 +129,6 @@ export const CustomerOrders: React.FC<CustomerOrdersProps> = ({ cartCount }) => 
     <div className="min-h-screen bg-[#FDFBF7] pb-20 flex flex-col">
       <Navbar cartCount={cartCount} />
 
-      {/* Loading Modal for Payment */}
       <LoadingModal 
         isOpen={submittingPayment} 
         type="loading" 
@@ -234,7 +222,6 @@ export const CustomerOrders: React.FC<CustomerOrdersProps> = ({ cartCount }) => 
                              )}
                           </div>
 
-                          {/* Allow payment if Cash and Status is Pending or Preparing */}
                           {order.paymentMethod === PaymentMethod.CASH && (order.status === OrderStatus.PENDING || order.status === OrderStatus.PREPARING) && (
                               <button 
                                 onClick={() => handleOpenPayment(order)}
@@ -252,7 +239,6 @@ export const CustomerOrders: React.FC<CustomerOrdersProps> = ({ cartCount }) => 
         )}
       </div>
 
-      {/* Payment Update Modal */}
       {paymentModalOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setPaymentModalOpen(false)}></div>
@@ -305,7 +291,6 @@ export const CustomerOrders: React.FC<CustomerOrdersProps> = ({ cartCount }) => 
                         />
                       </label>
 
-                       {/* Verification Status Feedback */}
                        {slipImage && !verifying && verificationResult && (
                          <div className={`mt-3 w-full p-3 rounded-lg flex items-start text-xs font-medium border ${verificationResult.isValid ? 'bg-green-100 text-green-800 border-green-200' : 'bg-red-100 text-red-800 border-red-200'}`}>
                            {verificationResult.isValid ? (

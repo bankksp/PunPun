@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Navbar } from '../components/Navbar';
-import { getProducts, saveProduct, deleteProduct } from '../services/dataService';
+import { getProducts, saveProduct, deleteProduct, compressImage } from '../services/dataService';
 import { Product, ProductCategory, ServingType } from '../types';
 import { Plus, Edit2, Trash2, X, Search, Upload, Image as ImageIcon, Flame, Snowflake, Wind, Cookie } from 'lucide-react';
 import { LoadingModal } from '../components/LoadingModal';
@@ -13,7 +13,7 @@ export const AdminProducts: React.FC = () => {
   
   // States for status
   const [loading, setLoading] = useState(false);
-  const [isSaving, setIsSaving] = useState(false); // Specifically for showing the cute modal
+  const [isSaving, setIsSaving] = useState(false); 
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   useEffect(() => {
@@ -70,60 +70,62 @@ export const AdminProducts: React.FC = () => {
       return;
     }
 
-    // Check if at least one price is set
     const hasPrice = Object.keys(editingProduct.prices).length > 0;
     if (!hasPrice) {
       alert("กรุณากำหนดราคาอย่างน้อย 1 ประเภท");
       return;
     }
 
-    // Generate ID for new product if needed
     const productToSave = {
       ...editingProduct,
       id: editingProduct.id || `PROD-${Date.now()}`
     };
 
-    setIsSaving(true); // Trigger cute modal
-    await saveProduct(productToSave);
-    
-    // Show success for a moment
-    setIsSaving(false);
-    setSaveSuccess(true);
-    
-    // Delay closing to let user see success
-    setTimeout(async () => {
-      setSaveSuccess(false);
-      setIsModalOpen(false);
-      await fetchProducts();
-    }, 1500);
-  };
-
-  const convertToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = error => reject(error);
-    });
+    setIsSaving(true);
+    try {
+      await saveProduct(productToSave);
+      setIsSaving(false);
+      setSaveSuccess(true);
+      
+      setTimeout(async () => {
+        setSaveSuccess(false);
+        setIsModalOpen(false);
+        await fetchProducts();
+      }, 1500);
+    } catch (error) {
+      setIsSaving(false);
+      alert('เกิดข้อผิดพลาดในการบันทึก');
+    }
   };
 
   const handleCoverImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0] && editingProduct) {
       const file = e.target.files[0];
-      const base64 = await convertToBase64(file);
-      setEditingProduct({ ...editingProduct, image: base64 });
+      try {
+        // Compress: Max 800px width, 0.7 quality
+        const base64 = await compressImage(file, 800, 0.7);
+        setEditingProduct({ ...editingProduct, image: base64 });
+      } catch (err) {
+        console.error("Image processing error", err);
+        alert("ไม่สามารถประมวลผลรูปภาพได้");
+      }
     }
   };
 
   const handleAdditionalImagesUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && editingProduct) {
       const files = Array.from(e.target.files);
-      const base64Promises = files.map((file) => convertToBase64(file as File));
-      const newImages = await Promise.all(base64Promises);
-      setEditingProduct({ 
-        ...editingProduct, 
-        additionalImages: [...(editingProduct.additionalImages || []), ...newImages] 
-      });
+      try {
+        const base64Promises = files.map((file) => compressImage(file, 800, 0.7));
+        const newImages = await Promise.all(base64Promises);
+        setEditingProduct({ 
+          ...editingProduct, 
+          additionalImages: [...(editingProduct.additionalImages || []), ...newImages] 
+        });
+      } catch (err) {
+        console.error("Gallery processing error", err);
+        alert("ไม่สามารถประมวลผลรูปภาพบางรูปได้");
+      }
     }
   };
 
@@ -135,19 +137,15 @@ export const AdminProducts: React.FC = () => {
     }
   };
 
-  // Helper to handle price changes
   const updatePrice = (type: ServingType, userType: 'general' | 'teacher' | 'student', value: number) => {
     if (!editingProduct) return;
     
     const newPrices = { ...editingProduct.prices };
-    
     if (!newPrices[type]) {
       newPrices[type] = { general: 0, teacher: 0, student: 0 };
     }
-    
     newPrices[type]![userType] = value;
     
-    // Cleanup if all are 0 (means remove this type)
     const p = newPrices[type]!;
     if (p.general === 0 && p.teacher === 0 && p.student === 0) {
       delete newPrices[type];
@@ -168,8 +166,7 @@ export const AdminProducts: React.FC = () => {
     <div className="min-h-screen bg-gray-50 pb-20 relative">
       <Navbar isAdmin={true} />
       
-      {/* Cute Modals */}
-      <LoadingModal isOpen={isSaving} type="loading" message="กำลังบันทึกสินค้า..." />
+      <LoadingModal isOpen={isSaving} type="loading" message="กำลังบีบอัดรูปและบันทึกสินค้า..." />
       <LoadingModal isOpen={saveSuccess} type="success" message="บันทึกข้อมูลเรียบร้อยแล้ว" />
 
       <div className="max-w-7xl mx-auto px-4 py-8">
@@ -206,14 +203,11 @@ export const AdminProducts: React.FC = () => {
                 <span className="absolute top-2 right-2 bg-white/90 px-2 py-1 rounded text-xs font-bold shadow-sm">
                   {product.category}
                 </span>
-                
-                {/* Variant Badges */}
                 <div className="absolute top-2 left-2 flex flex-col gap-1.5">
                   {product.prices[ServingType.HOT] && <div className="p-1 bg-red-500/80 rounded-full text-white"><Flame className="w-3 h-3"/></div>}
                   {product.prices[ServingType.ICED] && <div className="p-1 bg-blue-500/80 rounded-full text-white"><Snowflake className="w-3 h-3"/></div>}
                   {product.prices[ServingType.FRAPPE] && <div className="p-1 bg-purple-500/80 rounded-full text-white"><Wind className="w-3 h-3"/></div>}
                 </div>
-
                 {product.isPopular && (
                   <span className="absolute bottom-2 right-2 bg-red-500 text-white px-2 py-1 rounded text-xs shadow-sm">
                     ขายดี
@@ -244,7 +238,6 @@ export const AdminProducts: React.FC = () => {
         </div>
       </div>
 
-      {/* Edit/Add Modal */}
       {isModalOpen && editingProduct && (
         <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -259,8 +252,6 @@ export const AdminProducts: React.FC = () => {
             
             <form onSubmit={handleSave} className="p-6">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                
-                {/* Left Column: Details */}
                 <div className="space-y-6">
                   <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
                     <h4 className="font-semibold text-gray-700 mb-4 flex items-center">
@@ -277,7 +268,6 @@ export const AdminProducts: React.FC = () => {
                           className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 outline-none"
                         />
                       </div>
-                      
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">หมวดหมู่</label>
@@ -302,7 +292,6 @@ export const AdminProducts: React.FC = () => {
                           <label htmlFor="isPopular" className="text-sm font-medium text-gray-700">สินค้าขายดี (Popular)</label>
                         </div>
                       </div>
-
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">รายละเอียด</label>
                         <textarea 
@@ -315,11 +304,8 @@ export const AdminProducts: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Pricing Matrix */}
                   <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
                     <h4 className="font-semibold text-gray-700 mb-4">กำหนดราคา (ใส่ 0 หากไม่มีขายในประเภทนั้น)</h4>
-                    
-                    {/* Render inputs based on category logic, but generally show all for coffee/tea */}
                     {(editingProduct.category === ProductCategory.SNACK) ? (
                         <div className="mb-4 bg-white p-3 rounded-lg border border-gray-200">
                           <div className="flex items-center gap-2 mb-2 text-amber-800 font-bold">
@@ -386,10 +372,7 @@ export const AdminProducts: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Right Column: Media */}
                 <div className="space-y-6">
-                  
-                  {/* Cover Image */}
                   <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
                     <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center justify-between">
                       <span>รูปปกสินค้า (แนวตั้ง 3:4)</span>
@@ -420,7 +403,6 @@ export const AdminProducts: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Additional Images */}
                   <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
                     <label className="block text-sm font-semibold text-gray-700 mb-2">รูปภาพเพิ่มเติม (Gallery)</label>
                     <div className="grid grid-cols-4 gap-2 mb-3">
@@ -449,7 +431,6 @@ export const AdminProducts: React.FC = () => {
                       </label>
                     </div>
                   </div>
-
                 </div>
               </div>
 

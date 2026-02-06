@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
 import { Navbar } from '../components/Navbar';
 import { CartItem, PaymentMethod, Order, OrderStatus, UserType } from '../types';
 import { QR_CODE_URL } from '../constants';
-import { createOrder } from '../services/dataService';
+import { createOrder, compressImage } from '../services/dataService';
 import { verifySlipWithAI } from '../services/aiService';
 import { Trash2, MapPin, Upload, CreditCard, Banknote, ArrowLeft, User, ShoppingBag, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -31,7 +30,6 @@ export const CustomerCart: React.FC<CustomerCartProps> = ({ cart, removeFromCart
 
   const total = cart.reduce((sum, item) => sum + item.appliedPrice, 0);
 
-  // Trigger verification when slipImage changes
   useEffect(() => {
     const checkSlip = async () => {
       if (slipImage && paymentMethod === PaymentMethod.TRANSFER) {
@@ -54,15 +52,6 @@ export const CustomerCart: React.FC<CustomerCartProps> = ({ cart, removeFromCart
       checkSlip();
     }
   }, [slipImage, paymentMethod, total]);
-
-  const convertToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = error => reject(error);
-    });
-  };
 
   const handlePlaceOrder = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,7 +77,8 @@ export const CustomerCart: React.FC<CustomerCartProps> = ({ cart, removeFromCart
       let slipUrl = undefined;
 
       if (slipImage) {
-        slipBase64 = await convertToBase64(slipImage);
+        // Compress the slip image before sending (max width 600px is enough for slips)
+        slipBase64 = await compressImage(slipImage, 600, 0.6);
         slipUrl = URL.createObjectURL(slipImage);
       }
 
@@ -323,7 +313,6 @@ export const CustomerCart: React.FC<CustomerCartProps> = ({ cart, removeFromCart
                         />
                       </label>
 
-                      {/* Verification Status Feedback */}
                       {slipImage && !verifying && verificationResult && (
                          <div className={`mt-3 p-3 rounded-lg flex items-start text-xs font-medium border ${verificationResult.isValid ? 'bg-green-100 text-green-800 border-green-200' : 'bg-red-100 text-red-800 border-red-200'}`}>
                            {verificationResult.isValid ? (
