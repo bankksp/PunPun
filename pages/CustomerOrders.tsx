@@ -1,0 +1,288 @@
+import React, { useState, useEffect } from 'react';
+import { Navbar } from '../components/Navbar';
+import { getOrders, updateOrderPayment } from '../services/dataService';
+import { Order, OrderStatus, PaymentMethod } from '../types';
+import { Search, Clock, MapPin, User, Upload, CheckCircle, RefreshCcw, CreditCard, Banknote, XCircle, ClipboardList } from 'lucide-react';
+import { QR_CODE_URL } from '../constants';
+import { LoadingModal } from '../components/LoadingModal';
+import { Footer } from '../components/Footer';
+
+interface CustomerOrdersProps {
+  cartCount: number;
+}
+
+export const CustomerOrders: React.FC<CustomerOrdersProps> = ({ cartCount }) => {
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [loading, setLoading] = useState(true);
+  
+  // Payment Modal State
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [slipImage, setSlipImage] = useState<File | null>(null);
+  const [submittingPayment, setSubmittingPayment] = useState(false);
+  const [successModal, setSuccessModal] = useState(false);
+
+  const fetchOrders = () => {
+    setLoading(true);
+    getOrders().then(data => {
+      // Filter out completed or cancelled orders older than 24 hours to keep the list clean (Optional, but good for UX)
+      // For now, we just show recently created first
+      setOrders(data);
+      setLoading(false);
+    });
+  };
+
+  useEffect(() => {
+    fetchOrders();
+    const interval = setInterval(() => {
+        getOrders().then(setOrders);
+    }, 15000); // Auto refresh every 15s
+    return () => clearInterval(interval);
+  }, []);
+
+  const filteredOrders = orders.filter(o => 
+    o.customerName.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    o.id.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const getStatusColor = (status: OrderStatus) => {
+    switch (status) {
+      case OrderStatus.PENDING: return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case OrderStatus.PREPARING: return 'bg-blue-100 text-blue-800 border-blue-200';
+      case OrderStatus.DELIVERING: return 'bg-purple-100 text-purple-800 border-purple-200';
+      case OrderStatus.COMPLETED: return 'bg-green-100 text-green-800 border-green-200';
+      case OrderStatus.CANCELLED: return 'bg-red-100 text-red-800 border-red-200';
+      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  };
+
+  const getStatusIcon = (status: OrderStatus) => {
+    switch (status) {
+      case OrderStatus.PENDING: return <Clock className="w-3 h-3" />;
+      case OrderStatus.PREPARING: return <RefreshCcw className="w-3 h-3 animate-spin" style={{animationDuration: '3s'}} />;
+      case OrderStatus.DELIVERING: return <MapPin className="w-3 h-3" />;
+      case OrderStatus.COMPLETED: return <CheckCircle className="w-3 h-3" />;
+      case OrderStatus.CANCELLED: return <XCircle className="w-3 h-3" />;
+      default: return null;
+    }
+  };
+
+  const convertToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = error => reject(error);
+    });
+  };
+
+  const handleOpenPayment = (order: Order) => {
+    setSelectedOrder(order);
+    setSlipImage(null);
+    setPaymentModalOpen(true);
+  };
+
+  const handleSubmitPayment = async () => {
+    if (!selectedOrder || !slipImage) return;
+    
+    setSubmittingPayment(true);
+    try {
+        const base64 = await convertToBase64(slipImage);
+        await updateOrderPayment(selectedOrder.id, base64);
+        
+        setPaymentModalOpen(false);
+        setSuccessModal(true);
+        setSubmittingPayment(false);
+        fetchOrders(); // Refresh data
+    } catch (e) {
+        console.error(e);
+        alert("เกิดข้อผิดพลาดในการอัพโหลดสลิป");
+        setSubmittingPayment(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#FDFBF7] pb-20 flex flex-col">
+      <Navbar cartCount={cartCount} />
+
+      {/* Loading Modal for Payment */}
+      <LoadingModal 
+        isOpen={submittingPayment} 
+        type="loading" 
+        message="กำลังอัพเดทข้อมูลการชำระเงิน..." 
+      />
+
+       <LoadingModal 
+        isOpen={successModal} 
+        type="success" 
+        message="แจ้งโอนเงินเรียบร้อยแล้ว"
+        onClose={() => setSuccessModal(false)}
+      />
+
+      <div className="max-w-3xl mx-auto px-4 py-8 flex-grow w-full">
+        <div className="flex flex-col gap-4 mb-8">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-800 flex items-center">
+              <ClipboardList className="w-7 h-7 mr-2 text-amber-600" />
+              ติดตามสถานะออเดอร์
+            </h1>
+            <p className="text-sm text-gray-500 mt-1">ค้นหาออเดอร์ของคุณเพื่อดูสถานะ หรือแจ้งโอนเงิน</p>
+          </div>
+          
+          <div className="relative shadow-sm">
+            <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+            <input 
+              type="text" 
+              placeholder="ค้นหาด้วย ชื่อ หรือ เลขออเดอร์ (Order ID)" 
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 transition-shadow"
+            />
+          </div>
+        </div>
+
+        {loading ? (
+           <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+             <div className="w-10 h-10 border-4 border-amber-200 border-t-amber-600 rounded-full animate-spin mb-4"></div>
+             <p>กำลังโหลดข้อมูล...</p>
+           </div>
+        ) : filteredOrders.length === 0 ? (
+            <div className="text-center py-16 bg-white rounded-3xl border border-gray-100 shadow-sm">
+               <ClipboardList className="w-16 h-16 text-gray-200 mx-auto mb-3" />
+               <p className="text-gray-400">ไม่พบข้อมูลออเดอร์</p>
+            </div>
+        ) : (
+            <div className="space-y-4">
+               {filteredOrders.map(order => (
+                 <div key={order.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow">
+                    <div className="p-5">
+                       <div className="flex justify-between items-start mb-4">
+                          <div>
+                             <div className="flex items-center gap-2 mb-1">
+                                <span className="font-bold text-lg text-gray-800">{order.customerName}</span>
+                                <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full border border-gray-200">{order.id}</span>
+                             </div>
+                             <div className="flex items-center text-xs text-gray-500 gap-3">
+                                <span className="flex items-center"><User className="w-3 h-3 mr-1"/> {order.userType}</span>
+                                <span className="flex items-center"><Clock className="w-3 h-3 mr-1"/> {new Date(order.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                             </div>
+                          </div>
+                          <div className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 border ${getStatusColor(order.status)}`}>
+                             {getStatusIcon(order.status)}
+                             {order.status}
+                          </div>
+                       </div>
+
+                       <div className="bg-gray-50 rounded-xl p-3 mb-4 space-y-2">
+                          {order.items.map((item, idx) => (
+                             <div key={idx} className="flex justify-between text-sm text-gray-600">
+                                <span>{item.name} x{item.quantity} <span className="text-xs text-gray-400">({item.sweetness})</span></span>
+                                <span className="font-medium text-gray-800">฿{item.appliedPrice * item.quantity}</span>
+                             </div>
+                          ))}
+                          <div className="border-t border-gray-200 pt-2 flex justify-between items-center mt-2">
+                             <span className="font-bold text-gray-700">ยอดรวม</span>
+                             <span className="font-bold text-lg text-amber-700">฿{order.totalAmount}</span>
+                          </div>
+                       </div>
+
+                       <div className="flex justify-between items-center">
+                          <div className="flex items-center text-sm text-gray-600">
+                             {order.paymentMethod === PaymentMethod.CASH ? (
+                                <span className="flex items-center text-orange-600 bg-orange-50 px-2 py-1 rounded-lg">
+                                    <Banknote className="w-4 h-4 mr-1"/> เงินสด
+                                </span>
+                             ) : (
+                                <span className="flex items-center text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">
+                                    <CreditCard className="w-4 h-4 mr-1"/> โอนชำระ {order.slipUrl ? '(แนบสลิปแล้ว)' : ''}
+                                </span>
+                             )}
+                          </div>
+
+                          {/* Allow payment if Cash and Status is Pending or Preparing */}
+                          {order.paymentMethod === PaymentMethod.CASH && (order.status === OrderStatus.PENDING || order.status === OrderStatus.PREPARING) && (
+                              <button 
+                                onClick={() => handleOpenPayment(order)}
+                                className="px-4 py-2 bg-amber-600 text-white text-sm font-bold rounded-xl hover:bg-amber-700 shadow-sm flex items-center transition-colors"
+                              >
+                                <Upload className="w-4 h-4 mr-2" />
+                                เปลี่ยนเป็นโอนจ่าย
+                              </button>
+                          )}
+                       </div>
+                    </div>
+                 </div>
+               ))}
+            </div>
+        )}
+      </div>
+
+      {/* Payment Update Modal */}
+      {paymentModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setPaymentModalOpen(false)}></div>
+            <div className="relative bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl animate-pop-in">
+                <h3 className="text-xl font-bold text-gray-900 mb-4 text-center">ชำระเงิน (โอนจ่าย)</h3>
+                
+                <div className="bg-amber-50 p-4 rounded-2xl mb-6 text-center border border-amber-100">
+                    <p className="text-sm text-gray-600 mb-2">ยอดชำระ</p>
+                    <p className="text-3xl font-bold text-amber-700">฿{selectedOrder?.totalAmount}</p>
+                </div>
+
+                <div className="flex flex-col items-center mb-6">
+                     <div className="bg-white p-2 rounded-xl border border-gray-200 shadow-sm mb-4">
+                        <img src={QR_CODE_URL} className="w-40 h-40 mix-blend-multiply" alt="QR Code" />
+                     </div>
+                     <p className="text-sm text-gray-500 mb-4">ธนาคารกสิกรไทย - ปันปันสูข คอฟฟี่</p>
+                     
+                     <label className="w-full cursor-pointer group">
+                        <div className={`flex flex-col items-center justify-center px-4 py-6 border-2 border-dashed rounded-xl transition-all ${slipImage ? 'border-green-400 bg-green-50' : 'border-gray-300 hover:border-amber-400 hover:bg-amber-50'}`}>
+                          {slipImage ? (
+                              <>
+                                <CheckCircle className="w-8 h-8 text-green-500 mb-2" />
+                                <span className="text-sm font-bold text-green-700">แนบสลิปเรียบร้อย</span>
+                                <span className="text-xs text-green-600 mt-1">{slipImage.name}</span>
+                              </>
+                          ) : (
+                              <>
+                                <Upload className="w-8 h-8 text-gray-400 mb-2 group-hover:text-amber-500" />
+                                <span className="text-sm font-medium text-gray-600 group-hover:text-amber-700">คลิกเพื่ออัพโหลดสลิป</span>
+                              </>
+                          )}
+                        </div>
+                        <input 
+                          type="file" 
+                          accept="image/*" 
+                          className="hidden" 
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files[0]) {
+                              setSlipImage(e.target.files[0]);
+                            }
+                          }}
+                        />
+                      </label>
+                </div>
+
+                <div className="flex gap-3">
+                    <button 
+                        onClick={() => setPaymentModalOpen(false)}
+                        className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-600 font-bold hover:bg-gray-50"
+                    >
+                        ยกเลิก
+                    </button>
+                    <button 
+                        onClick={handleSubmitPayment}
+                        disabled={!slipImage}
+                        className="flex-1 py-3 rounded-xl bg-amber-600 text-white font-bold hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-amber-200"
+                    >
+                        ยืนยันการโอน
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
+      <Footer />
+    </div>
+  );
+};

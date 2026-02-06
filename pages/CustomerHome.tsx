@@ -1,0 +1,378 @@
+import React, { useState, useEffect } from 'react';
+import { Navbar } from '../components/Navbar';
+import { UserType, Product, ProductCategory, CartItem, ServingType } from '../types';
+import { getProducts } from '../services/dataService';
+import { Plus, Coffee, Sparkles, Star, Flame, Snowflake, Wind, Cookie } from 'lucide-react';
+import { SWEETNESS_LEVELS } from '../constants';
+import { Footer } from '../components/Footer';
+
+interface CustomerHomeProps {
+  addToCart: (item: CartItem) => void;
+  cartCount: number;
+}
+
+export const CustomerHome: React.FC<CustomerHomeProps> = ({ addToCart, cartCount }) => {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [activeCategory, setActiveCategory] = useState<string>('All');
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [sweetness, setSweetness] = useState<string>(SWEETNESS_LEVELS[2]); // Default 50%
+  const [selectedUserType, setSelectedUserType] = useState<UserType>(UserType.GENERAL);
+  
+  // Selection State
+  const [selectedServingType, setSelectedServingType] = useState<ServingType | null>(null);
+
+  const [loading, setLoading] = useState(true);
+
+  // Gallery State for Modal
+  const [activeMedia, setActiveMedia] = useState<string | null>(null);
+  const [isVideoActive, setIsVideoActive] = useState(false);
+
+  useEffect(() => {
+    getProducts().then(data => {
+      setProducts(data);
+      setLoading(false);
+    });
+  }, []);
+
+  // Reset modal state when product changes
+  useEffect(() => {
+    if (selectedProduct) {
+      setSweetness(SWEETNESS_LEVELS[2]);
+      setSelectedUserType(UserType.GENERAL);
+      setActiveMedia(selectedProduct.image);
+      setIsVideoActive(false);
+
+      // Determine default serving type
+      if (selectedProduct.category === ProductCategory.SNACK) {
+        setSelectedServingType(ServingType.SNACK);
+      } else {
+        // Default to Iced if available, then Hot, then Frappe
+        if (selectedProduct.prices[ServingType.ICED]) setSelectedServingType(ServingType.ICED);
+        else if (selectedProduct.prices[ServingType.HOT]) setSelectedServingType(ServingType.HOT);
+        else if (selectedProduct.prices[ServingType.FRAPPE]) setSelectedServingType(ServingType.FRAPPE);
+        else setSelectedServingType(null);
+      }
+    }
+  }, [selectedProduct]);
+
+  const categories = ['All', ...Object.values(ProductCategory)];
+
+  const filteredProducts = activeCategory === 'All' 
+    ? products 
+    : products.filter(p => p.category === activeCategory);
+
+  const getPrice = (product: Product, userType: UserType, servingType: ServingType | null) => {
+    if (!servingType || !product.prices[servingType]) return 0;
+    
+    const priceStruct = product.prices[servingType];
+    if (!priceStruct) return 0;
+
+    switch (userType) {
+      case UserType.TEACHER: return priceStruct.teacher;
+      case UserType.STUDENT: return priceStruct.student;
+      default: return priceStruct.general;
+    }
+  };
+
+  // Helper to get minimum starting price for card display
+  const getStartPrice = (product: Product) => {
+    let minPrice = Infinity;
+    const types = [ServingType.HOT, ServingType.ICED, ServingType.FRAPPE, ServingType.SNACK];
+    
+    types.forEach(type => {
+      if (product.prices[type]) {
+        if (product.prices[type]!.student < minPrice) minPrice = product.prices[type]!.student;
+      }
+    });
+    return minPrice === Infinity ? 0 : minPrice;
+  };
+
+  const handleAddToCart = () => {
+    if (selectedProduct && selectedServingType) {
+      const finalPrice = getPrice(selectedProduct, selectedUserType, selectedServingType);
+      
+      const item: CartItem = {
+        ...selectedProduct,
+        cartId: Date.now().toString(),
+        quantity: 1,
+        sweetness: selectedProduct.category === ProductCategory.SNACK ? '-' : sweetness,
+        appliedPrice: finalPrice,
+        selectedUserType: selectedUserType,
+        selectedServingType: selectedServingType
+      };
+      addToCart(item);
+      setSelectedProduct(null); // Close modal
+    }
+  };
+
+  const getServingTypeIcon = (type: ServingType) => {
+    switch(type) {
+      case ServingType.HOT: return <Flame className="w-5 h-5" />;
+      case ServingType.ICED: return <Snowflake className="w-5 h-5" />;
+      case ServingType.FRAPPE: return <Wind className="w-5 h-5" />;
+      case ServingType.SNACK: return <Cookie className="w-5 h-5" />;
+      default: return null;
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#FDFBF7] pb-20">
+      <Navbar cartCount={cartCount} />
+
+      {/* Hero Section */}
+      <div className="relative bg-amber-900 overflow-hidden shadow-lg">
+        <div className="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
+        <div className="relative max-w-7xl mx-auto py-12 px-6 flex flex-col md:flex-row items-center justify-between">
+          <div className="text-white z-10 mb-6 md:mb-0">
+            <h2 className="text-4xl font-bold tracking-tight text-amber-50 leading-tight">ความสุข...<br/>ในทุกแก้วที่ดื่ม</h2>
+            <p className="text-amber-200 mt-2 text-lg font-light flex items-center">
+              <Star className="w-5 h-5 mr-2 text-yellow-400 fill-current" />
+              ปัน ปันสูข คอฟฟี่ - กาแฟเพื่อการศึกษา
+            </p>
+          </div>
+          <div className="hidden md:block opacity-80 transform rotate-12 hover:rotate-0 transition-transform duration-700">
+            <Coffee className="w-40 h-40 text-amber-200" />
+          </div>
+        </div>
+        <div className="absolute bottom-0 w-full h-8 bg-[#FDFBF7] rounded-t-3xl"></div>
+      </div>
+
+      {/* Categories */}
+      <div className="max-w-7xl mx-auto px-4 -mt-2 mb-8 relative z-20">
+        <div className="flex space-x-2 overflow-x-auto pb-4 scrollbar-hide justify-start md:justify-center">
+          {categories.map(cat => (
+            <button
+              key={cat}
+              onClick={() => setActiveCategory(cat)}
+              className={`px-5 py-2.5 rounded-full whitespace-nowrap text-sm font-medium transition-all duration-300 shadow-sm ${
+                activeCategory === cat 
+                  ? 'bg-amber-800 text-white shadow-amber-200 scale-105' 
+                  : 'bg-white text-gray-500 border border-gray-100 hover:bg-amber-50 hover:text-amber-800 hover:border-amber-200'
+              }`}
+            >
+              {cat === 'All' ? 'ทั้งหมด' : cat}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Menu Grid */}
+      <div className="max-w-7xl mx-auto px-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-6">
+        {loading ? (
+          <div className="col-span-full flex flex-col items-center justify-center py-20 text-gray-400">
+            <div className="w-12 h-12 border-4 border-amber-200 border-t-amber-600 rounded-full animate-spin mb-4"></div>
+            <p className="font-light">กำลังชงเมนูอร่อย...</p>
+          </div>
+        ) : filteredProducts.map(product => (
+          <div 
+            key={product.id} 
+            onClick={() => setSelectedProduct(product)}
+            className="group relative bg-white rounded-3xl shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_20px_40px_rgba(0,0,0,0.1)] transition-all duration-300 overflow-hidden flex flex-col h-full cursor-pointer transform hover:-translate-y-2 border border-gray-100"
+          >
+            {/* Vertical Image Aspect Ratio */}
+            <div className="relative aspect-[4/5] overflow-hidden">
+              <img 
+                src={product.image} 
+                alt={product.name} 
+                className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-700 ease-in-out" 
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-80 group-hover:opacity-90 transition-opacity duration-300"></div>
+              
+              {/* Top Badges */}
+              <div className="absolute top-3 left-3 flex flex-col gap-1.5 items-start">
+                {product.isPopular && (
+                  <div className="flex items-center gap-1 bg-red-500 text-white text-[10px] font-bold px-2.5 py-1 rounded-full shadow-lg backdrop-blur-sm">
+                    <Sparkles className="w-3 h-3 fill-current" />
+                    <span>ขายดี</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Available Types Indicators */}
+              <div className="absolute top-3 right-3 flex flex-col gap-1">
+                 {product.prices[ServingType.HOT] && <div className="p-1 bg-red-500/80 backdrop-blur rounded-full text-white" title="ร้อน"><Flame className="w-3 h-3"/></div>}
+                 {product.prices[ServingType.ICED] && <div className="p-1 bg-blue-500/80 backdrop-blur rounded-full text-white" title="เย็น"><Snowflake className="w-3 h-3"/></div>}
+                 {product.prices[ServingType.FRAPPE] && <div className="p-1 bg-purple-500/80 backdrop-blur rounded-full text-white" title="ปั่น"><Wind className="w-3 h-3"/></div>}
+              </div>
+
+              {/* Content Overlay */}
+              <div className="absolute bottom-0 left-0 right-0 p-4 pt-12 text-white">
+                 <div className="transform translate-y-2 group-hover:translate-y-0 transition-transform duration-300">
+                  <h3 className="font-bold text-lg mb-1 leading-snug shadow-black drop-shadow-md">{product.name}</h3>
+                  <p className="text-xs text-gray-200 line-clamp-1 mb-3 font-light opacity-90">{product.description}</p>
+                  
+                  <div className="flex justify-between items-center">
+                    <div className="flex flex-col">
+                      <span className="text-[9px] text-gray-300 uppercase tracking-wider">ราคาเริ่ม</span>
+                      <span className="text-xl font-bold text-amber-300">฿{getStartPrice(product)}</span>
+                    </div>
+                    <button className="bg-white/20 hover:bg-white text-white hover:text-amber-800 p-2 rounded-full backdrop-blur-sm transition-all duration-300">
+                      <Plus className="h-5 w-5" />
+                    </button>
+                  </div>
+                 </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <Footer />
+
+      {/* Product Modal */}
+      {selectedProduct && (
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div 
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+            onClick={() => setSelectedProduct(null)}
+          ></div>
+          
+          <div className="relative bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl p-6 sm:p-8 shadow-2xl animate-slide-up sm:animate-zoom-in max-h-[90vh] overflow-y-auto">
+            {/* Header with Gallery */}
+            <div className="mb-6 flex gap-4">
+              <div className="w-1/3 aspect-[3/4] rounded-2xl overflow-hidden shadow-lg border border-gray-100 flex-shrink-0">
+                 <img src={activeMedia || selectedProduct.image} className="w-full h-full object-cover" />
+              </div>
+              <div className="flex-1 flex flex-col">
+                 <h3 className="text-2xl font-bold text-gray-900 leading-tight mb-2">{selectedProduct.name}</h3>
+                 <p className="text-gray-500 text-sm leading-relaxed font-light flex-1 overflow-y-auto max-h-24 scrollbar-hide">
+                    {selectedProduct.description}
+                 </p>
+
+                 {/* Thumbnails */}
+                 {(selectedProduct.video || (selectedProduct.additionalImages && selectedProduct.additionalImages.length > 0)) && (
+                  <div className="flex gap-2 overflow-x-auto pb-1 mt-2 scrollbar-hide">
+                    <button 
+                      onClick={() => { setActiveMedia(selectedProduct.image); setIsVideoActive(false); }}
+                      className={`w-10 h-10 flex-shrink-0 rounded-lg overflow-hidden border-2 ${!isVideoActive && activeMedia === selectedProduct.image ? 'border-amber-600' : 'border-transparent'}`}
+                    >
+                      <img src={selectedProduct.image} className="w-full h-full object-cover" />
+                    </button>
+                    {selectedProduct.additionalImages?.map((img, idx) => (
+                      <button 
+                        key={idx}
+                        onClick={() => { setActiveMedia(img); setIsVideoActive(false); }}
+                        className={`w-10 h-10 flex-shrink-0 rounded-lg overflow-hidden border-2 ${!isVideoActive && activeMedia === img ? 'border-amber-600' : 'border-transparent'}`}
+                      >
+                        <img src={img} className="w-full h-full object-cover" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              {/* Serving Type Selector (Hot/Iced/Frappe) - HIDING for snacks */}
+              {selectedProduct.category !== ProductCategory.SNACK && (
+                <div>
+                   <label className="block text-sm font-bold text-gray-800 mb-3">เลือกประเภท</label>
+                   <div className="flex gap-3">
+                      {[ServingType.HOT, ServingType.ICED, ServingType.FRAPPE].map((type) => {
+                        const isAvailable = !!selectedProduct.prices[type];
+                        if (!isAvailable) return null;
+
+                        const isSelected = selectedServingType === type;
+                        let colorClass = "";
+                        if (isSelected) {
+                          if (type === ServingType.HOT) colorClass = "bg-red-500 text-white border-red-500 shadow-red-200";
+                          if (type === ServingType.ICED) colorClass = "bg-blue-500 text-white border-blue-500 shadow-blue-200";
+                          if (type === ServingType.FRAPPE) colorClass = "bg-purple-500 text-white border-purple-500 shadow-purple-200";
+                        } else {
+                           colorClass = "bg-white text-gray-600 border-gray-200 hover:bg-gray-50";
+                        }
+
+                        return (
+                          <button
+                            key={type}
+                            onClick={() => setSelectedServingType(type)}
+                            className={`flex-1 py-3 px-2 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all shadow-sm ${colorClass} ${isSelected ? 'shadow-lg scale-105' : ''}`}
+                          >
+                             {getServingTypeIcon(type)}
+                             <span className="text-xs font-bold">{type}</span>
+                          </button>
+                        );
+                      })}
+                   </div>
+                </div>
+              )}
+
+              {/* User Type Selector */}
+              <div>
+                <label className="block text-sm font-bold text-gray-800 mb-3">ประเภทลูกค้า</label>
+                <div className="grid grid-cols-3 gap-2 p-1 bg-gray-100 rounded-xl">
+                 {[UserType.GENERAL, UserType.TEACHER, UserType.STUDENT].map((type) => (
+                   <button
+                    key={type}
+                    onClick={() => setSelectedUserType(type)}
+                    className={`py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${
+                      selectedUserType === type 
+                        ? 'bg-white text-amber-800 shadow-sm ring-1 ring-black/5' 
+                        : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'
+                    }`}
+                   >
+                     {type}
+                   </button>
+                 ))}
+               </div>
+               
+               {/* Dynamic Price Display */}
+               <div className="mt-4 flex justify-between items-center px-4 py-3 bg-amber-50/50 rounded-xl border border-amber-100">
+                 <span className="text-sm text-gray-500 font-medium">ราคาที่ต้องชำระ</span>
+                 <div className="flex flex-col items-end">
+                    <span className="text-3xl font-bold text-amber-600">
+                      ฿{getPrice(selectedProduct, selectedUserType, selectedServingType)}
+                    </span>
+                    {selectedProduct.category !== ProductCategory.SNACK && selectedServingType && (
+                      <span className="text-[10px] text-gray-400 font-medium bg-white px-2 py-0.5 rounded-full border border-gray-100">
+                        {selectedServingType}
+                      </span>
+                    )}
+                 </div>
+               </div>
+              </div>
+
+              {/* Sweetness Selector */}
+              {selectedProduct.category !== ProductCategory.SNACK && (
+                <div>
+                  <label className="block text-sm font-bold text-gray-800 mb-3">ระดับความหวาน</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {SWEETNESS_LEVELS.map(level => (
+                      <button
+                        key={level}
+                        onClick={() => setSweetness(level)}
+                        className={`py-3 px-4 rounded-xl text-sm border transition-all duration-200 ${
+                          sweetness === level 
+                            ? 'bg-amber-50 border-amber-500 text-amber-800 ring-1 ring-amber-500/20 font-medium' 
+                            : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        {level}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="mt-8 flex gap-3 pt-6 border-t border-gray-100">
+              <button 
+                onClick={() => setSelectedProduct(null)}
+                className="flex-1 py-3.5 border border-gray-200 rounded-xl text-gray-600 font-bold hover:bg-gray-50 transition-colors"
+              >
+                ยกเลิก
+              </button>
+              <button 
+                onClick={handleAddToCart}
+                className="flex-[2] py-3.5 bg-gradient-to-r from-amber-600 to-amber-700 text-white rounded-xl font-bold hover:from-amber-700 hover:to-amber-800 shadow-lg shadow-amber-200 transition-all transform active:scale-95 flex items-center justify-center gap-2"
+              >
+                เพิ่มลงตะกร้า <span>•</span> ฿{getPrice(selectedProduct, selectedUserType, selectedServingType)}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
