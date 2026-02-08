@@ -53,6 +53,7 @@ export interface Product {
   additionalImages?: string[]; // Gallery
   video?: string; // Video URL or Base64
   isPopular?: boolean;
+  isRecommended?: boolean; // New field for Recommended items
 }
 
 export interface CartItem extends Omit<Product, 'prices'> {

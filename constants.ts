@@ -20,7 +20,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     image: 'https://images.unsplash.com/photo-1517701604599-bb29b5dd7359?w=800&q=80',
     additionalImages: [],
     video: '',
-    isPopular: true
+    isPopular: true,
+    isRecommended: true
   },
   {
     id: '2',
@@ -76,7 +77,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     description: 'นมเย็นชื่นใจ สีสวย หวานหอมกลิ่นน้ำแดง',
     image: 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=800&q=80',
     additionalImages: [],
-    video: ''
+    video: '',
+    isRecommended: true
   },
   {
     id: '6',
@@ -103,7 +105,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     description: 'ครัวซองต์หอมเนยแท้ กรอบนอกนุ่มใน',
     image: 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=800&q=80',
     additionalImages: [],
-    video: ''
+    video: '',
+    isRecommended: true
   },
   {
     id: '8',

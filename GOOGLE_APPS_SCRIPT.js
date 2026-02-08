@@ -92,13 +92,15 @@ function getProducts(doc) {
     ...row,
     prices: row.prices ? JSON.parse(row.prices) : {},
     additionalImages: row.additionalImages ? JSON.parse(row.additionalImages) : [],
-    isPopular: String(row.isPopular).toLowerCase() === "true"
+    isPopular: String(row.isPopular).toLowerCase() === "true",
+    isRecommended: String(row.isRecommended).toLowerCase() === "true"
   }));
 }
 
 function saveProduct(doc, product) {
   const sheet = getOrCreateSheet(doc, "Products");
-  const headers = ["id", "name", "category", "prices", "description", "image", "additionalImages", "video", "isPopular"];
+  // Updated headers to include isRecommended
+  const headers = ["id", "name", "category", "prices", "description", "image", "additionalImages", "video", "isPopular", "isRecommended"];
   ensureHeaders(sheet, headers);
 
   // Upload Images
@@ -113,7 +115,7 @@ function saveProduct(doc, product) {
   const rowData = [
     product.id, product.name, product.category, JSON.stringify(product.prices),
     product.description, product.image, JSON.stringify(product.additionalImages || []),
-    product.video || "", product.isPopular
+    product.video || "", product.isPopular, product.isRecommended
   ];
 
   const rows = sheet.getDataRange().getValues();

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Navbar } from '../components/Navbar';
 import { getProducts, saveProduct, deleteProduct, compressImage } from '../services/dataService';
 import { Product, ProductCategory, ServingType } from '../types';
-import { Plus, Edit2, Trash2, X, Search, Upload, Image as ImageIcon, Flame, Snowflake, Wind, Cookie } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Search, Upload, Image as ImageIcon, Flame, Snowflake, Wind, Cookie, ThumbsUp, Sparkles } from 'lucide-react';
 import { LoadingModal } from '../components/LoadingModal';
 
 export const AdminProducts: React.FC = () => {
@@ -48,7 +48,8 @@ export const AdminProducts: React.FC = () => {
       image: '',
       additionalImages: [],
       video: '',
-      isPopular: false
+      isPopular: false,
+      isRecommended: false
     });
     setIsModalOpen(true);
   };
@@ -114,7 +115,8 @@ export const AdminProducts: React.FC = () => {
 
   const handleAdditionalImagesUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && editingProduct) {
-      const files = Array.from(e.target.files);
+      // Fix: Cast explicitly to File[] to avoid 'unknown' type error in strict mode
+      const files = Array.from(e.target.files) as File[];
       try {
         const base64Promises = files.map((file) => compressImage(file, 800, 0.7));
         const newImages = await Promise.all(base64Promises);
@@ -203,16 +205,23 @@ export const AdminProducts: React.FC = () => {
                 <span className="absolute top-2 right-2 bg-white/90 px-2 py-1 rounded text-xs font-bold shadow-sm">
                   {product.category}
                 </span>
-                <div className="absolute top-2 left-2 flex flex-col gap-1.5">
+                <div className="absolute top-2 left-2 flex flex-col gap-1.5 items-start">
                   {product.prices[ServingType.HOT] && <div className="p-1 bg-red-500/80 rounded-full text-white"><Flame className="w-3 h-3"/></div>}
                   {product.prices[ServingType.ICED] && <div className="p-1 bg-blue-500/80 rounded-full text-white"><Snowflake className="w-3 h-3"/></div>}
                   {product.prices[ServingType.FRAPPE] && <div className="p-1 bg-purple-500/80 rounded-full text-white"><Wind className="w-3 h-3"/></div>}
                 </div>
-                {product.isPopular && (
-                  <span className="absolute bottom-2 right-2 bg-red-500 text-white px-2 py-1 rounded text-xs shadow-sm">
-                    ขายดี
-                  </span>
-                )}
+                <div className="absolute bottom-2 right-2 flex flex-col gap-1 items-end">
+                    {product.isRecommended && (
+                    <span className="bg-amber-500 text-white px-2 py-1 rounded text-xs shadow-sm flex items-center gap-1">
+                        <ThumbsUp className="w-3 h-3" /> แนะนำ
+                    </span>
+                    )}
+                    {product.isPopular && (
+                    <span className="bg-red-500 text-white px-2 py-1 rounded text-xs shadow-sm flex items-center gap-1">
+                        <Sparkles className="w-3 h-3" /> ขายดี
+                    </span>
+                    )}
+                </div>
               </div>
               <div className="p-3 flex-1 flex flex-col">
                 <h3 className="font-bold text-gray-800 text-sm mb-1">{product.name}</h3>
@@ -281,15 +290,31 @@ export const AdminProducts: React.FC = () => {
                             ))}
                           </select>
                         </div>
-                        <div className="flex items-center space-x-2 pt-6">
-                          <input 
-                            type="checkbox" 
-                            id="isPopular"
-                            checked={editingProduct.isPopular}
-                            onChange={e => setEditingProduct({...editingProduct, isPopular: e.target.checked})}
-                            className="rounded text-amber-600 focus:ring-amber-500 h-4 w-4"
-                          />
-                          <label htmlFor="isPopular" className="text-sm font-medium text-gray-700">สินค้าขายดี (Popular)</label>
+                        <div className="flex flex-col gap-2 pt-1">
+                          <div className="flex items-center space-x-2">
+                             <input 
+                               type="checkbox" 
+                               id="isPopular"
+                               checked={editingProduct.isPopular}
+                               onChange={e => setEditingProduct({...editingProduct, isPopular: e.target.checked})}
+                               className="rounded text-red-600 focus:ring-red-500 h-4 w-4"
+                             />
+                             <label htmlFor="isPopular" className="text-sm font-medium text-gray-700 flex items-center gap-1">
+                                <Sparkles className="w-3 h-3 text-red-500" /> สินค้าขายดี
+                             </label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                             <input 
+                               type="checkbox" 
+                               id="isRecommended"
+                               checked={editingProduct.isRecommended}
+                               onChange={e => setEditingProduct({...editingProduct, isRecommended: e.target.checked})}
+                               className="rounded text-amber-600 focus:ring-amber-500 h-4 w-4"
+                             />
+                             <label htmlFor="isRecommended" className="text-sm font-medium text-gray-700 flex items-center gap-1">
+                                <ThumbsUp className="w-3 h-3 text-amber-500" /> เมนูแนะนำ
+                             </label>
+                          </div>
                         </div>
                       </div>
                       <div>

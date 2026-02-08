@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShoppingCart, LayoutDashboard, Coffee, LogOut, Menu, Lock, Package, ClipboardList } from 'lucide-react';
+import { ShoppingCart, LayoutDashboard, Coffee, LogOut, Menu, Lock, Package, ClipboardList, Store } from 'lucide-react';
 import { LOGO_URL, APP_NAME } from '../constants';
 import { useNavigate, useLocation } from 'react-router-dom';
 
@@ -89,23 +89,34 @@ export const Navbar: React.FC<NavbarProps> = ({ cartCount = 0, isAdmin = false }
               </>
             ) : (
               <>
+                <button 
+                  onClick={() => navigate('/')}
+                  className="text-sm font-medium px-3 py-2 rounded-lg flex items-center text-amber-700 bg-amber-50 border border-amber-100 hover:bg-amber-100 transition-colors"
+                  title="กลับไปหน้าสั่งซื้อ"
+                >
+                  <Store className="h-4 w-4 mr-2" />
+                  <span className="hidden sm:inline">หน้าร้าน</span>
+                </button>
+
+                <div className="h-6 w-px bg-gray-200 mx-1"></div>
+
                  <button 
                   onClick={() => navigate('/admin/dashboard')}
-                  className={`text-sm font-medium px-3 py-2 rounded-lg flex items-center transition-colors ${location.pathname === '/admin/dashboard' ? 'bg-amber-50 text-amber-800' : 'text-gray-600 hover:bg-gray-50 hover:text-amber-800'}`}
+                  className={`text-sm font-medium px-3 py-2 rounded-lg flex items-center transition-colors ${location.pathname === '/admin/dashboard' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'}`}
                 >
                   <LayoutDashboard className="h-4 w-4 mr-2" />
                   <span className="hidden sm:inline">ภาพรวม</span>
                 </button>
                 <button 
                   onClick={() => navigate('/admin/orders')}
-                  className={`text-sm font-medium px-3 py-2 rounded-lg flex items-center transition-colors ${location.pathname === '/admin/orders' ? 'bg-amber-50 text-amber-800' : 'text-gray-600 hover:bg-gray-50 hover:text-amber-800'}`}
+                  className={`text-sm font-medium px-3 py-2 rounded-lg flex items-center transition-colors ${location.pathname === '/admin/orders' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'}`}
                 >
                   <Coffee className="h-4 w-4 mr-2" />
                   <span className="hidden sm:inline">ออเดอร์</span>
                 </button>
                 <button 
                   onClick={() => navigate('/admin/products')}
-                  className={`text-sm font-medium px-3 py-2 rounded-lg flex items-center transition-colors ${location.pathname === '/admin/products' ? 'bg-amber-50 text-amber-800' : 'text-gray-600 hover:bg-gray-50 hover:text-amber-800'}`}
+                  className={`text-sm font-medium px-3 py-2 rounded-lg flex items-center transition-colors ${location.pathname === '/admin/products' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'}`}
                 >
                   <Package className="h-4 w-4 mr-2" />
                   <span className="hidden sm:inline">สินค้า</span>

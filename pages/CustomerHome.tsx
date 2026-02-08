@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Navbar } from '../components/Navbar';
 import { UserType, Product, ProductCategory, CartItem, ServingType } from '../types';
 import { getProducts } from '../services/dataService';
-import { Plus, Sparkles, Star, Flame, Snowflake, Wind, Cookie } from 'lucide-react';
+import { Plus, Sparkles, Star, Flame, Snowflake, Wind, Cookie, X, ChevronLeft, ChevronRight, ZoomIn, ThumbsUp } from 'lucide-react';
 import { SWEETNESS_LEVELS, LOGO_URL } from '../constants';
 import { Footer } from '../components/Footer';
 
@@ -35,7 +35,10 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ addToCart, cartCount
 
   // Gallery State for Modal
   const [activeMedia, setActiveMedia] = useState<string | null>(null);
-  const [isVideoActive, setIsVideoActive] = useState(false);
+  
+  // Lightbox State
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
 
   useEffect(() => {
     // Fetch fresh data in background
@@ -52,8 +55,7 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ addToCart, cartCount
       setSweetness(SWEETNESS_LEVELS[2]);
       setSelectedUserType(UserType.GENERAL);
       setActiveMedia(selectedProduct.image);
-      setIsVideoActive(false);
-
+      
       // Determine default serving type
       if (selectedProduct.category === ProductCategory.SNACK) {
         setSelectedServingType(ServingType.SNACK);
@@ -67,11 +69,41 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ addToCart, cartCount
     }
   }, [selectedProduct]);
 
-  const categories = ['All', ...Object.values(ProductCategory)];
+  // Categories with "Recommended" added
+  const categories = ['All', 'Recommended', ...Object.values(ProductCategory)];
 
-  const filteredProducts = activeCategory === 'All' 
-    ? products 
-    : products.filter(p => p.category === activeCategory);
+  // Filtering and Sorting Logic
+  const getFilteredAndSortedProducts = () => {
+    let result: Product[] = [];
+
+    // 1. Filter
+    if (activeCategory === 'All') {
+      result = [...products];
+    } else if (activeCategory === 'Recommended') {
+      result = products.filter(p => p.isRecommended);
+    } else {
+      result = products.filter(p => p.category === activeCategory);
+    }
+
+    // 2. Sort (Only for 'All' or specific categories, usually we want Recommended -> Popular -> Others)
+    if (activeCategory !== 'Recommended') { // If specifically in Recommended tab, no need to sort by recommendation again
+        result.sort((a, b) => {
+            // Priority 1: Recommended
+            if (a.isRecommended && !b.isRecommended) return -1;
+            if (!a.isRecommended && b.isRecommended) return 1;
+            
+            // Priority 2: Popular
+            if (a.isPopular && !b.isPopular) return -1;
+            if (!a.isPopular && b.isPopular) return 1;
+
+            return 0; // Default order
+        });
+    }
+
+    return result;
+  };
+
+  const filteredProducts = getFilteredAndSortedProducts();
 
   const getPrice = (product: Product, userType: UserType, servingType: ServingType | null) => {
     if (!servingType || !product.prices[servingType]) return 0;
@@ -115,6 +147,31 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ addToCart, cartCount
       addToCart(item);
       setSelectedProduct(null); // Close modal
     }
+  };
+
+  // Lightbox Helpers
+  const getAllImages = () => {
+    if (!selectedProduct) return [];
+    return [selectedProduct.image, ...(selectedProduct.additionalImages || [])];
+  };
+
+  const openLightbox = () => {
+    const images = getAllImages();
+    const currentIndex = images.findIndex(img => img === activeMedia);
+    setLightboxIndex(currentIndex >= 0 ? currentIndex : 0);
+    setIsLightboxOpen(true);
+  };
+
+  const nextImage = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const images = getAllImages();
+    setLightboxIndex((prev) => (prev + 1) % images.length);
+  };
+
+  const prevImage = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const images = getAllImages();
+    setLightboxIndex((prev) => (prev - 1 + images.length) % images.length);
   };
 
   const getServingTypeIcon = (type: ServingType) => {
@@ -163,19 +220,30 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ addToCart, cartCount
       {/* Categories */}
       <div className="max-w-7xl mx-auto px-4 -mt-2 mb-8 relative z-20">
         <div className="flex space-x-2 overflow-x-auto pb-4 scrollbar-hide justify-start md:justify-center">
-          {categories.map(cat => (
-            <button
-              key={cat}
-              onClick={() => setActiveCategory(cat)}
-              className={`px-5 py-2.5 rounded-full whitespace-nowrap text-sm font-medium transition-all duration-300 shadow-sm ${
-                activeCategory === cat 
-                  ? 'bg-amber-800 text-white shadow-amber-200 scale-105' 
-                  : 'bg-white text-gray-500 border border-gray-100 hover:bg-amber-50 hover:text-amber-800 hover:border-amber-200'
-              }`}
-            >
-              {cat === 'All' ? 'ทั้งหมด' : cat}
-            </button>
-          ))}
+          {categories.map(cat => {
+            let label = cat;
+            let icon = null;
+            if (cat === 'All') label = 'ทั้งหมด';
+            if (cat === 'Recommended') {
+                label = 'เมนูแนะนำ';
+                icon = <ThumbsUp className="w-3 h-3 mr-1" />;
+            }
+
+            return (
+                <button
+                key={cat}
+                onClick={() => setActiveCategory(cat)}
+                className={`flex items-center px-5 py-2.5 rounded-full whitespace-nowrap text-sm font-medium transition-all duration-300 shadow-sm ${
+                    activeCategory === cat 
+                    ? 'bg-amber-800 text-white shadow-amber-200 scale-105' 
+                    : 'bg-white text-gray-500 border border-gray-100 hover:bg-amber-50 hover:text-amber-800 hover:border-amber-200'
+                }`}
+                >
+                {icon}
+                {label}
+                </button>
+            );
+          })}
         </div>
       </div>
 
@@ -185,6 +253,10 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ addToCart, cartCount
           <div className="col-span-full flex flex-col items-center justify-center py-20 text-gray-400">
             <div className="w-12 h-12 border-4 border-amber-200 border-t-amber-600 rounded-full animate-spin mb-4"></div>
             <p className="font-light">กำลังชงเมนูอร่อย...</p>
+          </div>
+        ) : filteredProducts.length === 0 ? (
+          <div className="col-span-full text-center py-20 text-gray-400">
+             <p>ไม่พบรายการสินค้า</p>
           </div>
         ) : filteredProducts.map(product => (
           <div 
@@ -203,6 +275,12 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ addToCart, cartCount
               
               {/* Top Badges */}
               <div className="absolute top-3 left-3 flex flex-col gap-1.5 items-start">
+                {product.isRecommended && (
+                  <div className="flex items-center gap-1 bg-amber-500 text-white text-[10px] font-bold px-2.5 py-1 rounded-full shadow-lg backdrop-blur-sm animate-pulse">
+                    <ThumbsUp className="w-3 h-3 fill-current" />
+                    <span>แนะนำ</span>
+                  </div>
+                )}
                 {product.isPopular && (
                   <div className="flex items-center gap-1 bg-red-500 text-white text-[10px] font-bold px-2.5 py-1 rounded-full shadow-lg backdrop-blur-sm">
                     <Sparkles className="w-3 h-3 fill-current" />
@@ -253,10 +331,32 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ addToCart, cartCount
           <div className="relative bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl p-6 sm:p-8 shadow-2xl animate-slide-up sm:animate-zoom-in max-h-[90vh] overflow-y-auto">
             {/* Header with Gallery */}
             <div className="mb-6 flex gap-4">
-              <div className="w-1/3 aspect-[3/4] rounded-2xl overflow-hidden shadow-lg border border-gray-100 flex-shrink-0">
-                 <img src={activeMedia || selectedProduct.image} className="w-full h-full object-cover" />
+              <div 
+                className="w-1/3 aspect-[3/4] rounded-2xl overflow-hidden shadow-lg border border-gray-100 flex-shrink-0 cursor-zoom-in relative group"
+                onClick={openLightbox}
+              >
+                 <img 
+                  src={activeMedia || selectedProduct.image} 
+                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" 
+                  alt={selectedProduct.name}
+                 />
+                 <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <ZoomIn className="text-white w-6 h-6 drop-shadow-md" />
+                 </div>
               </div>
               <div className="flex-1 flex flex-col">
+                 <div className="flex flex-wrap gap-2 mb-1">
+                    {selectedProduct.isRecommended && (
+                        <span className="text-[10px] px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full font-bold border border-amber-200 flex items-center w-max">
+                            <ThumbsUp className="w-3 h-3 mr-1" /> แนะนำ
+                        </span>
+                    )}
+                    {selectedProduct.isPopular && (
+                        <span className="text-[10px] px-2 py-0.5 bg-red-100 text-red-800 rounded-full font-bold border border-red-200 flex items-center w-max">
+                            <Sparkles className="w-3 h-3 mr-1" /> ขายดี
+                        </span>
+                    )}
+                 </div>
                  <h3 className="text-2xl font-bold text-gray-900 leading-tight mb-2">{selectedProduct.name}</h3>
                  <p className="text-gray-500 text-sm leading-relaxed font-light flex-1 overflow-y-auto max-h-24 scrollbar-hide">
                     {selectedProduct.description}
@@ -266,16 +366,16 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ addToCart, cartCount
                  {(selectedProduct.video || (selectedProduct.additionalImages && selectedProduct.additionalImages.length > 0)) && (
                   <div className="flex gap-2 overflow-x-auto pb-1 mt-2 scrollbar-hide">
                     <button 
-                      onClick={() => { setActiveMedia(selectedProduct.image); setIsVideoActive(false); }}
-                      className={`w-10 h-10 flex-shrink-0 rounded-lg overflow-hidden border-2 ${!isVideoActive && activeMedia === selectedProduct.image ? 'border-amber-600' : 'border-transparent'}`}
+                      onClick={() => { setActiveMedia(selectedProduct.image); }}
+                      className={`w-10 h-10 flex-shrink-0 rounded-lg overflow-hidden border-2 ${activeMedia === selectedProduct.image ? 'border-amber-600' : 'border-transparent'}`}
                     >
                       <img src={selectedProduct.image} className="w-full h-full object-cover" />
                     </button>
                     {selectedProduct.additionalImages?.map((img, idx) => (
                       <button 
                         key={idx}
-                        onClick={() => { setActiveMedia(img); setIsVideoActive(false); }}
-                        className={`w-10 h-10 flex-shrink-0 rounded-lg overflow-hidden border-2 ${!isVideoActive && activeMedia === img ? 'border-amber-600' : 'border-transparent'}`}
+                        onClick={() => { setActiveMedia(img); }}
+                        className={`w-10 h-10 flex-shrink-0 rounded-lg overflow-hidden border-2 ${activeMedia === img ? 'border-amber-600' : 'border-transparent'}`}
                       >
                         <img src={img} className="w-full h-full object-cover" />
                       </button>
@@ -394,6 +494,56 @@ export const CustomerHome: React.FC<CustomerHomeProps> = ({ addToCart, cartCount
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Lightbox / Fullscreen Image Viewer */}
+      {isLightboxOpen && selectedProduct && (
+        <div className="fixed inset-0 z-[150] bg-black/95 backdrop-blur-sm flex items-center justify-center animate-pop-in" onClick={() => setIsLightboxOpen(false)}>
+           <button 
+             onClick={() => setIsLightboxOpen(false)}
+             className="absolute top-4 right-4 text-white/70 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition-all"
+           >
+             <X className="w-8 h-8" />
+           </button>
+
+           <div className="relative w-full h-full flex items-center justify-center p-4">
+              {getAllImages().length > 1 && (
+                <>
+                  <button 
+                    onClick={prevImage}
+                    className="absolute left-4 z-10 text-white/70 hover:text-white bg-black/50 p-3 rounded-full hover:scale-110 transition-all"
+                  >
+                    <ChevronLeft className="w-8 h-8" />
+                  </button>
+                  <button 
+                    onClick={nextImage}
+                    className="absolute right-4 z-10 text-white/70 hover:text-white bg-black/50 p-3 rounded-full hover:scale-110 transition-all"
+                  >
+                    <ChevronRight className="w-8 h-8" />
+                  </button>
+                </>
+              )}
+              
+              <img 
+                src={getAllImages()[lightboxIndex]} 
+                alt={selectedProduct.name}
+                className="max-w-full max-h-screen object-contain shadow-2xl rounded-sm"
+                onClick={(e) => e.stopPropagation()} // Prevent close when clicking image
+              />
+
+              {/* Dots Indicator */}
+              {getAllImages().length > 1 && (
+                <div className="absolute bottom-8 left-0 right-0 flex justify-center gap-2">
+                   {getAllImages().map((_, idx) => (
+                     <div 
+                       key={idx}
+                       className={`w-2 h-2 rounded-full transition-all ${idx === lightboxIndex ? 'bg-white w-4' : 'bg-white/40'}`}
+                     />
+                   ))}
+                </div>
+              )}
+           </div>
         </div>
       )}
     </div>
