@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { HashRouter, Routes, Route } from 'react-router-dom';
 import { CustomerHome } from './pages/CustomerHome';
@@ -24,6 +25,16 @@ function App() {
     setCart([]);
   };
 
+  const updateQuantity = (cartId: string, delta: number) => {
+    setCart(prevCart => prevCart.map(item => {
+      if (item.cartId === cartId) {
+        const newQuantity = Math.max(1, item.quantity + delta);
+        return { ...item, quantity: newQuantity };
+      }
+      return item;
+    }));
+  };
+
   return (
     <HashRouter>
       <Routes>
@@ -43,6 +54,7 @@ function App() {
               cart={cart} 
               removeFromCart={removeFromCart} 
               clearCart={clearCart}
+              updateQuantity={updateQuantity}
             />
           } 
         />
