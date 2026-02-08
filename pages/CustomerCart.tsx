@@ -1,9 +1,10 @@
+
 import React, { useState } from 'react';
 import { Navbar } from '../components/Navbar';
 import { CartItem, PaymentMethod, Order, OrderStatus, UserType } from '../types';
 import { QR_CODE_URL } from '../constants';
 import { createOrder, compressImage } from '../services/dataService';
-import { Trash2, MapPin, Upload, CreditCard, Banknote, ArrowLeft, User, ShoppingBag, CheckCircle } from 'lucide-react';
+import { Trash2, MapPin, Upload, CreditCard, Banknote, ArrowLeft, User, ShoppingBag, CheckCircle, Plus, Minus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { LoadingModal } from '../components/LoadingModal';
 import { Footer } from '../components/Footer';
@@ -12,9 +13,10 @@ interface CustomerCartProps {
   cart: CartItem[];
   removeFromCart: (cartId: string) => void;
   clearCart: () => void;
+  updateQuantity: (cartId: string, delta: number) => void;
 }
 
-export const CustomerCart: React.FC<CustomerCartProps> = ({ cart, removeFromCart, clearCart }) => {
+export const CustomerCart: React.FC<CustomerCartProps> = ({ cart, removeFromCart, clearCart, updateQuantity }) => {
   const navigate = useNavigate();
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(PaymentMethod.CASH);
   const [deliveryLocation, setDeliveryLocation] = useState('');
@@ -23,7 +25,8 @@ export const CustomerCart: React.FC<CustomerCartProps> = ({ cart, removeFromCart
   const [submitting, setSubmitting] = useState(false);
   const [orderComplete, setOrderComplete] = useState(false);
 
-  const total = cart.reduce((sum, item) => sum + item.appliedPrice, 0);
+  // Calculate total based on quantity
+  const total = cart.reduce((sum, item) => sum + (item.appliedPrice * item.quantity), 0);
 
   const handlePlaceOrder = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -129,19 +132,19 @@ export const CustomerCart: React.FC<CustomerCartProps> = ({ cart, removeFromCart
                 <div className="p-6 space-y-6">
                   {cart.map((item) => (
                     <div key={item.cartId} className="flex gap-5 pb-6 border-b border-gray-50 last:border-0 last:pb-0">
-                      <div className="w-20 aspect-[3/4] rounded-xl overflow-hidden bg-gray-100 flex-shrink-0 border border-gray-100">
-                        <img src={item.image} className="w-full h-full object-cover" />
+                      <div className="w-24 aspect-[3/4] rounded-xl overflow-hidden bg-gray-100 flex-shrink-0 border border-gray-100 shadow-sm">
+                        <img src={item.image} className="w-full h-full object-cover" alt={item.name} />
                       </div>
                       <div className="flex-1 flex flex-col">
                         <div className="flex justify-between items-start">
                           <div>
                             <div className="flex items-center gap-2 mb-1">
                               <h4 className="font-bold text-gray-900 text-lg">{item.name}</h4>
+                            </div>
+                            <div className="flex flex-wrap gap-2 mt-1">
                               <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-200">
                                 {item.selectedServingType}
                               </span>
-                            </div>
-                            <div className="flex gap-2 mt-1">
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-100">
                                 {item.selectedUserType}
                               </span>
@@ -155,21 +158,42 @@ export const CustomerCart: React.FC<CustomerCartProps> = ({ cart, removeFromCart
                           <button 
                             onClick={() => removeFromCart(item.cartId)} 
                             className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"
+                            title="ลบรายการ"
                           >
                             <Trash2 className="w-5 h-5" />
                           </button>
                         </div>
+                        
                         <div className="mt-auto flex justify-between items-end">
-                          <span className="text-xs text-gray-400">จำนวน x{item.quantity}</span>
-                          <span className="text-xl font-bold text-amber-800">฿{item.appliedPrice}</span>
+                          <div className="flex items-center gap-3 bg-gray-50 rounded-lg p-1 border border-gray-100">
+                            <button
+                                onClick={() => updateQuantity(item.cartId, -1)}
+                                disabled={item.quantity <= 1}
+                                className="w-8 h-8 flex items-center justify-center rounded-md bg-white shadow-sm border border-gray-200 text-gray-600 hover:text-red-500 hover:border-red-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95"
+                            >
+                                <Minus className="w-4 h-4" />
+                            </button>
+                            <span className="font-bold text-gray-800 w-6 text-center text-sm">{item.quantity}</span>
+                            <button
+                                onClick={() => updateQuantity(item.cartId, 1)}
+                                className="w-8 h-8 flex items-center justify-center rounded-md bg-white shadow-sm border border-gray-200 text-gray-600 hover:text-green-600 hover:border-green-200 transition-all active:scale-95"
+                            >
+                                <Plus className="w-4 h-4" />
+                            </button>
+                          </div>
+                          
+                          <div className="text-right">
+                            <div className="text-xs text-gray-400 mb-0.5 font-medium">฿{item.appliedPrice} / หน่วย</div>
+                            <span className="text-xl font-bold text-amber-800">฿{(item.appliedPrice * item.quantity).toLocaleString()}</span>
+                          </div>
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
-                <div className="bg-gray-50 p-6 flex justify-between items-center border-t border-gray-100">
-                  <span className="text-gray-600 font-medium">ยอดรวมทั้งหมด</span>
-                  <span className="text-3xl font-bold text-amber-900">฿{total}</span>
+                <div className="bg-amber-50/50 p-6 flex justify-between items-center border-t border-dashed border-gray-200">
+                  <span className="text-gray-600 font-bold">ยอดรวมทั้งหมด</span>
+                  <span className="text-3xl font-bold text-amber-900">฿{total.toLocaleString()}</span>
                 </div>
               </div>
             </div>
@@ -294,7 +318,7 @@ export const CustomerCart: React.FC<CustomerCartProps> = ({ cart, removeFromCart
                   disabled={submitting || (paymentMethod === PaymentMethod.TRANSFER && !slipImage)}
                   className="w-full mt-8 py-4 bg-amber-600 text-white rounded-xl font-bold text-lg hover:bg-amber-700 shadow-xl shadow-amber-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:-translate-y-0.5 active:translate-y-0"
                 >
-                  {`ยืนยันการสั่งซื้อ • ฿${total}`}
+                  {`ยืนยันการสั่งซื้อ • ฿${total.toLocaleString()}`}
                 </button>
               </form>
             </div>
