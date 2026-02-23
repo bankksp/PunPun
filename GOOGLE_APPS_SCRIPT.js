@@ -1,5 +1,4 @@
 
-
 const FOLDER_ID = "1e9YhN5GHtDdKHqoqkkeSKu8jECAUeY74"; 
 const GOOGLE_CHAT_WEBHOOK_URL = "https://chat.googleapis.com/v1/spaces/AAQAGauDZf0/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=U6Oeox5kfhDz7X-zlQ4ScTQv3Kn6B5lOfK3_w4T_EnM";
 const CACHE_KEY_PRODUCTS = "products_json";
@@ -70,7 +69,15 @@ function responseJSON(data) {
 
 function sendChatNotification(message) {
   if (!GOOGLE_CHAT_WEBHOOK_URL) return;
-  try { UrlFetchApp.fetch(GOOGLE_CHAT_WEBHOOK_URL, { 'method' : 'post', 'contentType': 'application/json', 'payload' : JSON.stringify({ "text": message }) }); } catch (e) {}
+  try { 
+    UrlFetchApp.fetch(GOOGLE_CHAT_WEBHOOK_URL, { 
+      'method' : 'post', 
+      'contentType': 'application/json', 
+      'payload' : JSON.stringify({ "text": message }) 
+    }); 
+  } catch (e) {
+    console.error("Chat notification failed: " + e.toString());
+  }
 }
 
 function getProductsWithCache() {
@@ -171,31 +178,81 @@ function createOrder(doc, order, slipImage) {
   let slipUrl = "";
   if (isBase64(slipImage)) slipUrl = uploadImageToDrive(slipImage, "SLIP_" + order.id);
   sheet.appendRow([order.id, order.customerName, order.userType, JSON.stringify(order.items), order.totalAmount, order.paymentMethod, order.deliveryLocation, order.status, slipUrl, order.timestamp, order.paymentStatus]);
-  sendChatNotification(`🛍️ *New Order* (${order.id})\nCustomer: ${order.customerName}\nTotal: ${order.totalAmount}`);
+  
+  // Format Item List for Notification
+  const itemList = order.items.map(item => `• ${item.name} (${item.selectedServingType}) x${item.quantity} [${item.sweetness}]`).join('\n');
+  
+  const chatMessage = `🛍️ *มีออเดอร์ใหม่!* (${order.id})\n` +
+                      `👤 *ลูกค้า:* ${order.customerName} (${order.userType})\n` +
+                      `📍 *ส่งที่:* ${order.deliveryLocation}\n` +
+                      `📦 *รายการสินค้า:*\n${itemList}\n` +
+                      `💰 *ยอดรวม:* ${order.totalAmount} บาท\n` +
+                      `💳 *ชำระโดย:* ${order.paymentMethod} (${order.paymentStatus})\n` +
+                      `⚙️ *สถานะสินค้า:* ${order.status}`;
+                      
+  sendChatNotification(chatMessage);
   return { status: "success", slipUrl: slipUrl };
 }
 
 function updateOrderStatus(doc, id, status) {
   const sheet = getOrCreateSheet(doc, "Orders");
+  const data = getData(sheet);
+  const order = data.find(o => String(o.id) === String(id));
+  
   const rows = sheet.getDataRange().getValues();
   const idIdx = rows[0].indexOf("id");
   const statusIdx = rows[0].indexOf("status");
-  for (let i = 1; i < rows.length; i++) { if (String(rows[i][idIdx]) === String(id)) { sheet.getRange(i + 1, statusIdx + 1).setValue(status); break; } }
+  for (let i = 1; i < rows.length; i++) { 
+    if (String(rows[i][idIdx]) === String(id)) { 
+      sheet.getRange(i + 1, statusIdx + 1).setValue(status); 
+      break; 
+    } 
+  }
+  
+  if (order) {
+    const chatMessage = `🔔 *อัพเดทสถานะสินค้า* (${id})\n` +
+                        `👤 *ลูกค้า:* ${order.customerName}\n` +
+                        `📦 *สถานะใหม่:* ${status}`;
+    sendChatNotification(chatMessage);
+  }
+  
   return { status: "success" };
 }
 
 function updatePaymentStatus(doc, id, status) {
   const sheet = getOrCreateSheet(doc, "Orders");
+  const data = getData(sheet);
+  const order = data.find(o => String(o.id) === String(id));
+
   const rows = sheet.getDataRange().getValues();
   const idIdx = rows[0].indexOf("id");
   let statusIdx = rows[0].indexOf("paymentStatus");
-  if (statusIdx === -1) { sheet.getRange(1, sheet.getLastColumn() + 1).setValue("paymentStatus"); statusIdx = sheet.getLastColumn() - 1; }
-  for (let i = 1; i < rows.length; i++) { if (String(rows[i][idIdx]) === String(id)) { sheet.getRange(i + 1, statusIdx + 1).setValue(status); break; } }
+  if (statusIdx === -1) { 
+    sheet.getRange(1, sheet.getLastColumn() + 1).setValue("paymentStatus"); 
+    statusIdx = sheet.getLastColumn() - 1; 
+  }
+  for (let i = 1; i < rows.length; i++) { 
+    if (String(rows[i][idIdx]) === String(id)) { 
+      sheet.getRange(i + 1, statusIdx + 1).setValue(status); 
+      break; 
+    } 
+  }
+
+  if (order) {
+    const chatMessage = `💰 *อัพเดทสถานะการชำระเงิน* (${id})\n` +
+                        `👤 *ลูกค้า:* ${order.customerName}\n` +
+                        `💳 *สถานะการชำระ:* ${status}`;
+    sendChatNotification(chatMessage);
+  }
+
   return { status: "success" };
 }
 
 function updateOrderPayment(doc, id, slipImage) {
   const sheet = getOrCreateSheet(doc, "Orders");
+  const data = getData(sheet);
+  const order = data.find(o => String(o.id) === String(id));
+
   const rows = sheet.getDataRange().getValues();
   const headers = rows[0];
   const idIdx = headers.indexOf("id");
@@ -215,7 +272,12 @@ function updateOrderPayment(doc, id, slipImage) {
       if (slipUrlIdx > -1) sheet.getRange(i + 1, slipUrlIdx + 1).setValue(slipUrl);
       if (paymentMethodIdx > -1) sheet.getRange(i + 1, paymentMethodIdx + 1).setValue("โอนชำระ");
       if (paymentStatusIdx > -1) sheet.getRange(i + 1, paymentStatusIdx + 1).setValue("รอชำระ");
-      sendChatNotification(`💳 *Payment Updated* for Order (${id})\nA new slip has been uploaded.`);
+      
+      const chatMessage = `💳 *แจ้งโอนเงินใหม่* สำหรับออเดอร์ (${id})\n` +
+                          `👤 *ลูกค้า:* ${order ? order.customerName : 'Unknown'}\n` +
+                          `🖼️ *สลิป:* ${slipUrl}\n` +
+                          `⚠️ *กรุณาตรวจสอบความถูกต้องในระบบจัดการ*`;
+      sendChatNotification(chatMessage);
       return { status: "success", slipUrl: slipUrl };
     }
   }

@@ -8,6 +8,7 @@ import { AdminDashboard } from './pages/AdminDashboard';
 import { AdminOrders } from './pages/AdminOrders';
 import { AdminProducts } from './pages/AdminProducts';
 import { AdminLogin } from './pages/AdminLogin';
+import { AdminPOS } from './pages/AdminPOS';
 import { CartItem } from './types';
 
 function App() {
@@ -71,6 +72,7 @@ function App() {
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
         <Route path="/admin/orders" element={<AdminOrders />} />
         <Route path="/admin/products" element={<AdminProducts />} />
+        <Route path="/admin/pos" element={<AdminPOS />} />
       </Routes>
     </HashRouter>
   );
