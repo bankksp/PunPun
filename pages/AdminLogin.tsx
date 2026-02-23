@@ -49,12 +49,12 @@ export const AdminLogin: React.FC = () => {
           <form onSubmit={handleLogin} className="p-8 space-y-6">
             <div className="space-y-4">
               <div className="group">
-                <label className="block text-xs font-bold text-gray-400 uppercase mb-1 ml-1">Username</label>
+                <label className="block text-xs font-bold text-gray-400 uppercase mb-1 ml-1">ชื่อผู้ใช้งาน</label>
                 <div className="relative">
                   <User className="absolute left-3 top-3 text-gray-400 w-5 h-5 group-focus-within:text-amber-600 transition-colors" />
                   <input 
                     type="text" 
-                    placeholder="ชื่อผู้ใช้งาน"
+                    placeholder="กรอกชื่อผู้ใช้งาน"
                     value={username}
                     onChange={e => setUsername(e.target.value)}
                     className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition-all"
@@ -62,12 +62,12 @@ export const AdminLogin: React.FC = () => {
                 </div>
               </div>
               <div className="group">
-                 <label className="block text-xs font-bold text-gray-400 uppercase mb-1 ml-1">Password</label>
+                 <label className="block text-xs font-bold text-gray-400 uppercase mb-1 ml-1">รหัสผ่าน</label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-3 text-gray-400 w-5 h-5 group-focus-within:text-amber-600 transition-colors" />
                   <input 
                     type="password" 
-                    placeholder="รหัสผ่าน"
+                    placeholder="กรอกรหัสผ่าน"
                     value={password}
                     onChange={e => setPassword(e.target.value)}
                     className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition-all"
